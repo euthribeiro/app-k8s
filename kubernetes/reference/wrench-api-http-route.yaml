@@ -6,6 +6,7 @@ metadata:
 spec:
   parentRefs:
     - name: bgt3-gw
+      namespace: gateway
       sectionName: http
   hostnames: ['api.bgt3.com.br']
   rules:

@@ -9,31 +9,43 @@ e como aplicá-los. Há **dois caminhos**:
 - **`wrench-api-k8s/`** — **chart Helm** (caminho de deploy real, usado pelo CI/CD). Os mesmos
   recursos, parametrizados via `values.yaml` e injetados pela pipeline.
 
-> O banco de dados é o **RDS gerenciado**, provisionado pelo repositório `infra-db`. Os manifestos
-> de Postgres in-cluster que existiam na Fase 2 (StatefulSet, PVC, Service do banco, StorageClass)
-> foram **removidos** na Fase 3: não há mais banco dentro do cluster, nem comentado.
+> O banco de dados é o **RDS gerenciado**, provisionado pelo repositório `infra-db`, com um database
+> por ambiente na mesma instância: `wrench_auto_repair` (produção) e `wrench_auto_repair_hml`
+> (homologação). Não existe Postgres dentro do cluster.
 
 ---
 
-## Recursos criados (namespace `production`)
+## Entrada HTTP compartilhada
+
+O `Gateway` `bgt3-gw`, a `LoadBalancerConfiguration` e o ALB **não pertencem a este repositório**.
+São recursos de plataforma do `infra-k8s`, no namespace `gateway`, com listeners `http` (80) e
+`https` (443) que aceitam rotas de qualquer namespace e um certificado ACM que cobre
+`api.bgt3.com.br` e `hml-api.bgt3.com.br`.
+
+A aplicação publica apenas as suas `HTTPRoute`, com `parentRefs` apontando para
+`gateway/bgt3-gw` e filtradas pelo hostname do ambiente. Por isso homologação e produção
+compartilham um único ALB sem conflito de recursos.
+
+## Recursos criados por ambiente
+
+Os nomes são iguais nos dois ambientes; o que os separa é o namespace (`production` ou
+`homologacao`), criado pelo `helm upgrade --create-namespace` e removido pelo workflow de
+destruição.
 
 | Recurso | Kind | Papel |
 |---------|------|-------|
-| `production` | `Namespace` | Namespace de todos os recursos da aplicação |
 | `wrench-api-sa` | `ServiceAccount` | SA da API; anotada com a role IRSA do SES (envio de e-mail sem chave estática) |
-| `db-credentials` | `Secret` | Connection string do banco + config da app (ambiente, admin, região AWS) |
+| `db-credentials` | `Secret` | Connection string do database do ambiente e configuração da aplicação |
+| `newrelic-credentials` | `Secret` | Endpoint, protocolo e cabeçalho de autenticação do OTLP do New Relic |
 | `wrench-api-deployment` | `Deployment` | API .NET, porta 8080, RollingUpdate, probes `/health` e `/health/ready` |
 | `wrench-api-svc` | `Service` (ClusterIP) | Expõe a API na porta 8080 dentro do cluster |
 | `wrench-api-hpa` | `HorizontalPodAutoscaler` | Escala a API por CPU (50%), 1–6 réplicas |
-| `bgt3-gw` | `Gateway` (Gateway API) | Entrada L7; listeners HTTP:80 e HTTPS:443 |
-| `bgt3-gw-lbconfig` | `LoadBalancerConfiguration` (CRD AWS) | Configura o ALB: `internet-facing` + certificado ACM no 443 |
 | `wrench-api-tg` | `TargetGroupConfiguration` (CRD AWS) | `targetType: ip` para o target group do ALB |
-| `wrench-http-route` | `HTTPRoute` | Roteia o hostname para o `wrench-api-svc` (listener HTTPS) |
-| `wrench-https-redirect` | `HTTPRoute` | Redirect 301 HTTP → HTTPS (só quando há certificado) |
+| `wrench-http-route` | `HTTPRoute` | Roteia o hostname do ambiente para o `wrench-api-svc` (listener `https`) |
+| `wrench-https-redirect` | `HTTPRoute` | Redirect 301 HTTP → HTTPS para o hostname do ambiente (listener `http`) |
 
-O ALB em si **não** é um recurso do YAML: é criado pela AWS quando o **AWS Load
-Balancer Controller** observa o `Gateway`. A `GatewayClass` `aws-lb-alb` e os CRDs
-da Gateway API são pré-requisitos criados pelo Terraform (stack `infra/`).
+O manifesto `wrench-production-namespace.yaml` existe apenas para a aplicação manual dos manifestos
+crus; no chart, o namespace é criado pelo Helm.
 
 ### Detalhes de escalabilidade (HPA)
 
@@ -49,41 +61,50 @@ do EKS pelo Terraform).
 
 ```
 wrench-api-k8s/
-├── Chart.yaml                 # name: wrench-api, version 0.4.0
-├── values.yaml                # parâmetros (imagem, gateway, banco, SES…)
+├── Chart.yaml
+├── values.yaml
 └── templates/
-    ├── namespace.yaml
-    ├── serviceaccount.yaml     # IRSA quando serviceAccount.roleArn é setado
-    ├── secret.yaml             # ConnectionStrings__Database + config da app
-    ├── gateway.yaml            # listener HTTPS só quando gateway.certificateArn != ''
-    ├── loadbalancerconfiguration.yaml
+    ├── serviceaccount.yaml
+    ├── secret.yaml
     ├── api/
     │   ├── deployment.yaml
     │   ├── service.yaml
-    │   ├── hpa.yaml            # renderizado só se api.autoscaling.enabled
-    │   ├── http-route.yaml     # redirect HTTP→HTTPS (condicional)
+    │   ├── hpa.yaml
+    │   ├── http-route.yaml
     │   ├── https-route.yaml
     │   └── target-group.yaml
-    └── tests/test-connection.yaml   # `helm test`: curl no /health/ready
+    └── tests/test-connection.yaml
 ```
 
-### Valores principais (`values.yaml`)
+| Template | Restrição |
+|---|---|
+| `serviceaccount.yaml` | A anotação `eks.amazonaws.com/role-arn` só é gerada com `serviceAccount.roleArn` preenchido; o EKS então injeta `AWS_ROLE_ARN` e `AWS_WEB_IDENTITY_TOKEN_FILE` nos pods |
+| `secret.yaml` | `ConnectionStrings__Database` sobrescreve `ConnectionStrings:Database` do `appsettings` (o `__` mapeia a seção aninhada); o template falha sem `jwt.signingKey` ou `application.admin.password` |
+| `api/hpa.yaml` | Renderizado só com `api.autoscaling.enabled` |
+| `api/http-route.yaml` | Redirect 301 para HTTPS no listener `http` do Gateway de plataforma |
+| `api/https-route.yaml` | Encaminha o hostname ao Service no listener `https` do Gateway de plataforma |
+| `tests/test-connection.yaml` | `helm test`: `curl` no `/health/ready` do Service |
+
+### Valores (`values.yaml`)
 
 | Chave | Default | Observação |
 |-------|---------|------------|
-| `api.image.repository` | `...ecr.../wrench/api` | Sobrescrito no CI com o repo ECR |
+| `namespace` | `production` | Namespace de todos os recursos; o pipeline define `homologacao` ou `production` |
+| `api.image.repository` | `...ecr.../wrench/api` | Sobrescrito no CI com o repositório ECR |
 | `api.image.tag` | `latest` | Sobrescrito com a versão (tag semver) no CI |
 | `api.autoscaling` | `enabled: true`, 1–6, 50% CPU | Controla o HPA |
-| `gateway.className` | `aws-lb-alb` | Casa com a `GatewayClass` do Terraform |
-| `gateway.scheme` | `internet-facing` | Default do LBC é `internal` — daí ser explícito |
-| `gateway.certificateArn` | `''` | ARN do ACM; vazio = só HTTP |
-| `httpRoute.hostname` | `api.bgt3.com.br` | Deve casar com o ACM/DNS |
+| `gateway.name` | `bgt3-gw` | Gateway de plataforma do `infra-k8s` |
+| `gateway.namespace` | `gateway` | Namespace do Gateway de plataforma |
+| `httpRoute.hostname` | `api.bgt3.com.br` | Hostname do ambiente; precisa estar no certificado ACM e no DNS do `infra-k8s` |
 | `database.host` | `prod-db.bgt3.com.br` | CNAME do RDS |
-| `database.user` / `password` | placeholder | Sobrescritos no CI pelas credenciais do role da app |
-| `application.admin.password` | `''` | Obrigatório; injetado no CI a partir do secret `ADMIN_PASSWORD` |
-| `jwt.issuer` / `jwt.audience` | `Wrench Auto Repair` | Devem ser idênticos aos do `lambda-auth` |
+| `database.name` | `wrench_auto_repair` | Database do ambiente; homologação usa `wrench_auto_repair_hml` |
+| `database.user` / `password` | placeholder | Credenciais do role da aplicação criado pelo `infra-db`, nunca o usuário master; sobrescritos no CI |
+| `jwt.issuer` / `jwt.audience` | `Wrench Auto Repair` | Não são segredo, mas precisam ser idênticos aos do `lambda-auth`: a API só aceita token emitido com os mesmos valores |
 | `jwt.signingKey` | `''` | Obrigatório; injetado no CI a partir do secret `JWT_SIGNING_KEY` |
+| `application.admin.email` / `password` | `admin@wrench.com.br` / `''` | Administrador semeado na primeira subida; a senha é obrigatória e vem do secret `ADMIN_PASSWORD` |
+| `application.credentials.aws.region` | `us-east-1` | Região do SDK AWS; as credenciais vêm da role IRSA |
 | `serviceAccount.roleArn` | `''` | ARN da role IRSA do SES (injetado no CI) |
+| `newRelic.licenseKey` | `''` | Vazio mantém a aplicação no ar e faz o New Relic recusar a exportação; injetado a partir de `NEW_RELIC_LICENSE_KEY` |
 
 ---
 
@@ -92,48 +113,57 @@ wrench-api-k8s/
 ### Opção A — Chart Helm (recomendado, igual ao CI)
 
 ```bash
-# 1. Autenticar no cluster
-aws eks update-kubeconfig --region us-east-1 \
-  --name "$(terraform -chdir=terraform/infra output -raw cluster_name)"
+aws eks update-kubeconfig --region us-east-1 --name <CLUSTER_NAME>
 
-# 2. Instalar/atualizar a aplicação
-helm upgrade --install wrench ./wrench-api-k8s \
-  -n production --create-namespace \
+helm upgrade --install wrench-hml ./wrench-api-k8s \
+  -n homologacao --create-namespace \
+  --set namespace=homologacao \
+  --set httpRoute.hostname=hml-api.bgt3.com.br \
   --set api.image.repository=<ECR_API_REPO> \
   --set api.image.tag=<VERSION> \
-  --set gateway.certificateArn="$(terraform -chdir=terraform/infra output -raw acm_certificate_arn)" \
-  --set database.host="$(terraform -chdir=terraform/infra output -raw database_hostname)" \
-  --set database.name="$(terraform -chdir=terraform/infra output -raw database_name)" \
+  --set database.host=<DATABASE_HOSTNAME> \
+  --set database.name=wrench_auto_repair_hml \
   --set database.user=<APP_DB_USER> \
   --set database.password=<APP_DB_PASS> \
-  --set serviceAccount.roleArn="$(terraform -chdir=terraform/email output -raw app_ses_irsa_role_arn)"
+  --set jwt.signingKey=<JWT_SIGNING_KEY> \
+  --set application.admin.password=<ADMIN_PASSWORD> \
+  --set serviceAccount.roleArn=<SES_IRSA_ROLE_ARN>
 
-# 3. Esperar o ALB do Gateway ficar pronto
-kubectl -n production wait --for=condition=Programmed gateway/bgt3-gw --timeout=10m
-
-# 4. (opcional) Testar
-helm test wrench -n production
+kubectl -n homologacao rollout status deployment/wrench-api-deployment --timeout=10m
+helm test wrench-hml -n homologacao
 ```
+
+Para produção, use o release `wrench`, o namespace `production`, o hostname `api.bgt3.com.br` e o
+database `wrench_auto_repair`.
 
 ### Opção B — Manifestos crus (`kubectl`)
 
 ```bash
-kubectl apply -f kubernetes/wrench-production-namespace.yaml
-kubectl apply -f kubernetes/          # aplica os manifestos ativos do diretório
-kubectl -n production get pods,svc,hpa,gateway,httproute
+kubectl apply -f kubernetes/reference/wrench-production-namespace.yaml
+kubectl apply -f kubernetes/reference/
+kubectl -n production get pods,svc,hpa,httproute
 ```
 
-> Antes de aplicar os manifestos crus, ajuste o `defaultCertificate` em
-> `wrench-lb-config.yaml` (placeholder `REPLACE-WITH-REAL-ARN`) com o ARN real do
-> certificado ACM.
+Os manifestos crus representam o ambiente de produção e dependem do Gateway de plataforma já
+criado pelo `infra-k8s`.
 
 ## Verificação rápida
 
 ```bash
-kubectl -n production get pods                 # pods da API rodando
-kubectl -n production get hpa wrench-api-hpa    # métricas do autoscaler
-kubectl -n production get gateway bgt3-gw \
-  -o jsonpath='{.status.addresses[0].value}'   # hostname do ALB
+kubectl -n production get pods
+kubectl -n production get hpa wrench-api-hpa
+kubectl -n production get httproute wrench-http-route \
+  -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'
+kubectl -n gateway get gateway bgt3-gw -o jsonpath='{.status.addresses[0].value}'
+```
+
+## Remover um ambiente
+
+O workflow `destroy.yml` executa o equivalente a:
+
+```bash
+helm uninstall wrench-hml -n homologacao --wait
+kubectl delete namespace homologacao --ignore-not-found
 ```
 
 ## Pré-requisitos (fornecidos pelos repositórios de infraestrutura)
@@ -141,12 +171,14 @@ kubectl -n production get gateway bgt3-gw \
 Do **`infra-k8s`**:
 
 - Cluster EKS com **Metrics Server** (HPA), **EBS CSI** (volumes), **AWS Load Balancer
-  Controller** (ALB) e **CRDs da Gateway API** + `GatewayClass aws-lb-alb` (stack `infra/`).
-- Certificado **ACM** validado, casando com `httpRoute.hostname` (stack `infra/`).
+  Controller** (ALB) e **CRDs da Gateway API** + `GatewayClass aws-lb-alb`.
+- Gateway de plataforma `gateway/bgt3-gw`, ALB e certificado **ACM** com os dois hostnames.
+- CNAMEs `api.bgt3.com.br` e `hml-api.bgt3.com.br` para o ALB.
 - Role **IRSA do SES** para o envio de e-mail (stack `email/`).
 - Repositórios **ECR** da imagem e do chart (stack `ecr/`).
 
 Do **`infra-db`**:
 
-- Instância **RDS PostgreSQL** e o CNAME `prod-db` (stack `rds/`).
-- **Role de menor privilégio** da aplicação no Postgres (stack `roles/`).
+- Instância **RDS PostgreSQL**, o CNAME `prod-db` e os databases `wrench_auto_repair` e
+  `wrench_auto_repair_hml`.
+- **Role de menor privilégio** da aplicação no Postgres, dono dos dois databases (stack `roles/`).

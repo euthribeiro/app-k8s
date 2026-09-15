@@ -6,13 +6,10 @@ metadata:
 spec:
   parentRefs:
     - name: {{ .Values.gateway.name }}
-      {{- if .Values.gateway.certificateArn }}
+      namespace: {{ .Values.gateway.namespace }}
       sectionName: https
-      {{- end }}
   hostnames: ['{{ .Values.httpRoute.hostname }}']
   rules:
     - backendRefs:
         - name: wrench-api-svc
           port: {{ .Values.api.containerPort }}
-
-

@@ -57,7 +57,7 @@ jobs:
             -var="rds_workspace=${{ vars.TFC_WORKSPACE_RDS }}" \
             -var="email_workspace=${{ vars.TFC_WORKSPACE_EMAIL }}" \
             -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}"
-          for saida in cluster_name acm_certificate_arn database_hostname database_name \
+          for saida in cluster_name database_hostname database_name \
                        app_ses_irsa_role_arn api_repository chart_repository chart_repository_url; do
             echo "$saida=$(terraform -chdir="$OUTPUTS_DIR" output -raw "$saida")" >> "$GITHUB_OUTPUT"
           done
@@ -105,7 +105,6 @@ jobs:
           ECR_REPOSITORY: ${{ steps.infra.outputs.chart_repository_url }}
           API_REPO: ${{ steps.infra.outputs.api_repository }}
           VERSION: ${{ steps.tag.outputs.new_version }}
-          ACM_ARN: ${{ steps.infra.outputs.acm_certificate_arn }}
           DB_HOST: ${{ steps.infra.outputs.database_hostname }}
           DB_NAME: ${{ steps.infra.outputs.database_name }}
           DB_USERNAME: ${{ secrets.APPLICATION_DATABASE_USERNAME }}
@@ -123,14 +122,16 @@ jobs:
           HOSTNAME: ${{ inputs.hostname }}
           RELEASE: ${{ inputs.release_name }}
         run: |
+          if [ "$ENVIRONMENT" = "homologacao" ]; then
+            DB_NAME="${DB_NAME}_hml"
+          fi
           helm upgrade --install "$RELEASE" \
             "oci://$ECR_REPOSITORY" \
             --version "$VERSION" \
             -n "$ENVIRONMENT" --create-namespace \
+            --set namespace="$ENVIRONMENT" \
             --set api.image.repository="$API_REPO" \
             --set api.image.tag="$VERSION" \
-            --set gateway.name=bgt3-gw \
-            --set gateway.certificateArn="$ACM_ARN" \
             --set httpRoute.hostname="$HOSTNAME" \
             --set database.host="$DB_HOST" \
             --set database.name="$DB_NAME" \
@@ -146,9 +147,20 @@ jobs:
             --set serviceAccount.roleArn="$SES_ROLE_ARN" \
             --set newRelic.licenseKey="$NEW_RELIC_LICENSE_KEY"
 
-      - name: Wait Gateway ALB
+      - name: Aguardar rollout e rota
         env:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          kubectl -n "$ENVIRONMENT" wait --for=condition=Programmed \
-            gateway/bgt3-gw --timeout=10m
+          kubectl -n "$ENVIRONMENT" rollout status deployment/wrench-api-deployment --timeout=10m
+          for _ in $(seq 1 30); do
+            ACEITA=$(kubectl -n "$ENVIRONMENT" get httproute wrench-http-route \
+              -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}')
+            if [ "$ACEITA" = "True" ]; then
+              echo "HTTPRoute aceita pelo gateway."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::A HTTPRoute wrench-http-route não foi aceita pelo gateway gateway/bgt3-gw."
+          kubectl -n "$ENVIRONMENT" describe httproute wrench-http-route
+          exit 1

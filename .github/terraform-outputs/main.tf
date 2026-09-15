@@ -1,14 +1,3 @@
-# Configuração auxiliar usada apenas pelo pipeline de deploy.
-#
-# Depois da quebra do monorepo, a aplicação não roda mais no mesmo workflow que
-# provisiona a infraestrutura, então não há como receber os valores por `outputs`
-# de job. Este módulo lê os states publicados pelos repositórios infra-k8s e
-# infra-db e reexpõe os campos que o `helm upgrade` precisa.
-#
-# Roda com backend local (state efêmero do runner): não cria nem altera recurso
-# nenhum, apenas lê. A autenticação no HCP vem do ~/.terraformrc escrito pela
-# action hashicorp/setup-terraform.
-
 terraform {
   required_version = ">= 1.5.0"
 }
@@ -84,10 +73,6 @@ data "terraform_remote_state" "ecr" {
 
 output "cluster_name" {
   value = data.terraform_remote_state.infra.outputs.cluster_name
-}
-
-output "acm_certificate_arn" {
-  value = data.terraform_remote_state.infra.outputs.acm_certificate_arn
 }
 
 output "database_hostname" {

@@ -26,7 +26,10 @@ repositório `infra-db`.
 
 ## Organização física
 
-* **Um banco** (`wrench_auto_repair`) e **um schema** (`public`) para os quatro bounded contexts.
+* **Dois databases na mesma instância RDS**, com o mesmo schema: `wrench_auto_repair` (produção) e
+  `wrench_auto_repair_hml` (homologação). Cada ambiente da API e da Lambda conecta apenas ao seu, e
+  as migrations são aplicadas em cada um pelo deploy do respectivo ambiente.
+* **Um schema** (`public`) por database para os quatro bounded contexts.
 * **Quatro `DbContext`**, um por contexto, cada um com migrations próprias no seu projeto `infra`:
   `AutenticacaoContext`, `CadastroContext`, `PecaDbContext` e `OrdemServicoDbContext`.
 * O histórico das migrations dos quatro contextos fica na mesma tabela `__EFMigrationsHistory`. Os
@@ -222,6 +225,9 @@ ordens para a memória da aplicação; o resultado é publicado a cada 5 minutos
 | master do RDS | Terraform (`infra-db/terraform/roles`) | criar roles e conceder privilégios |
 | role da aplicação | API no EKS | `CONNECT` e `CREATE` no banco, `USAGE` e `CREATE` no schema, CRUD nas tabelas e sequências; dono das tabelas criadas pelas migrations |
 | role da Lambda | Lambda de autenticação | `CONNECT`, `USAGE` no schema e `SELECT` apenas em `Clientes(Id, Documento, Email)`, `Usuarios(Id, Email, PerfilId, Ativo)` e `Perfis(Id, Nome)` |
+
+Os privilégios dos dois roles são concedidos igualmente nos databases `wrench_auto_repair` e
+`wrench_auto_repair_hml`.
 
 A Lambda não enxerga senha, telefone, endereço, nome do cliente, veículos, estoque nem ordens de
 serviço. O conjunto de colunas é o contrato entre a Lambda e o schema da API, verificado por teste
