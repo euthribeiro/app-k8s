@@ -14,7 +14,7 @@ Helm que a implanta e a documentação de arquitetura do sistema.
 ![New Relic](https://img.shields.io/badge/New%20Relic-OpenTelemetry-1CE783?style=flat&logo=newrelic&logoColor=black)
 ![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?style=flat&logo=githubactions&logoColor=white)
 
-FIAP · Pós-Tech · 13SOAT · Tech Challenge Fase 3 · Grupo **BGT³**
+FIAP · Pós-Tech · 15SOAT · Tech Challenge Fase 3 · Grupo **BGT³**
 
 [**📚 API (OpenAPI/Scalar)**](https://api.bgt3.com.br/docs-ui) &nbsp;·&nbsp;
 [**📦 Postman**](./docs/postman/wrench.postman_collection.json) &nbsp;·&nbsp;
