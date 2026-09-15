@@ -164,3 +164,26 @@ jobs:
           echo "::error::A HTTPRoute wrench-http-route não foi aceita pelo gateway gateway/bgt3-gw."
           kubectl -n "$ENVIRONMENT" describe httproute wrench-http-route
           exit 1
+
+      - name: Diagnóstico do rollout
+        if: failure() && steps.infra.outputs.cluster_name != ''
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "::group::Pods e nós"
+          kubectl get nodes -o wide || true
+          kubectl -n "$ENVIRONMENT" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::Descrição dos pods da API"
+          kubectl -n "$ENVIRONMENT" describe pods -l app=wrench-api || true
+          echo "::endgroup::"
+          echo "::group::Eventos do namespace"
+          kubectl -n "$ENVIRONMENT" get events --sort-by=.lastTimestamp | tail -40 || true
+          echo "::endgroup::"
+          for pod in $(kubectl -n "$ENVIRONMENT" get pods -l app=wrench-api -o name 2> /dev/null); do
+            echo "::group::Logs de $pod"
+            kubectl -n "$ENVIRONMENT" logs "$pod" --tail=200 || true
+            echo "--- execução anterior ---"
+            kubectl -n "$ENVIRONMENT" logs "$pod" --previous --tail=200 || true
+            echo "::endgroup::"
+          done
