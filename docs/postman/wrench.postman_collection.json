@@ -1,0 +1,1426 @@
+{
+  "info": {
+    "_postman_id": "d1992732-41e9-4eb0-ba65-5e286c272215",
+    "name": "Wrench Web API",
+    "description": "# Wrench Auto Repair — Web API\n\nAPI REST da oficina **Wrench Auto Repair**, responsável pela gestão de  \nclientes, veículos, peças/insumos, usuários e por todo o ciclo de vida da  \n**Ordem de Serviço** (criação → diagnóstico → orçamento → execução → entrega).\n\nEsta collection foi organizada para servir também como **documentação de uso**:  \ncada pasta representa um recurso e cada request traz propósito, autorização  \nexigida, parâmetros e respostas esperadas.\n\n---\n\n## 🔗 URL base e versionamento\n\nTodas as rotas seguem o padrão:\n\n```\n{{baseUrl}}/api/v{{version}}/<Recurso>\n\n ```\n\n| Variável | Valor padrão | Descrição |\n| --- | --- | --- |\n| `baseUrl` | `https://localhost:5001` | Host da API. Troque por dev/homolog/prod. |\n| `version` | `1` | Versão da API (URL versioning via `Asp.Versioning`). |\n\n> A API usa versionamento por URL (`api/v1/...`). Novas versões futuras  \npodem ser apontadas alterando apenas a variável `version`. \n  \n\n---\n\n## 🔐 Autenticação e autorização\n\nA autenticação é feita via **JWT Bearer Token**.\n\n1. Chame **Autenticação → POST Autenticar** com e-mail e senha.\n    \n2. O token retornado é salvo automaticamente na variável de collection `token`  \n    (script de teste do próprio request).\n    \n3. Os demais requests herdam o `Authorization: Bearer {{token}}` definido no  \n    nível da collection — não é preciso configurar header manualmente.\n    \n\n### Papéis (roles)\n\nO acesso a cada endpoint é controlado por role. Os papéis usados são:\n\n| Role | Acesso típico |\n| --- | --- |\n| `Admin` | Acesso completo, incluindo gestão de usuários e perfis. |\n| `Funcionario` | Operação da oficina: clientes, veículos, peças, ordens, diagnósticos. |\n| `Cliente` | Aprovação/recusa do orçamento da própria ordem de serviço. |\n\nCada request abaixo indica a **Autorização** exigida. Endpoints marcados como  \n_anônimos_ não exigem token.\n\n---\n\n## 📄 Paginação e ordenação\n\nOs endpoints de listagem aceitam os seguintes parâmetros de query:\n\n| Parâmetro | Tipo | Padrão | Descrição |\n| --- | --- | --- | --- |\n| `NumeroPagina` | int | `1` | Página desejada (baseada em 1). |\n| `TamanhoPagina` | int | `10` | Quantidade de itens por página. |\n| `OrdenarPor` | string | — | Campo usado para ordenar (ex.: `nome`, `marca`). |\n| `Decrescente` | bool | `false` | `true` ordena de forma decrescente. |\n\nA resposta é um **resultado paginado** (`ResultadoPaginado`), contendo a  \nlista de itens e os metadados de paginação (total, página atual, etc.).\n\n---\n\n## 🧩 Convenções\n\n- **Content-Type:** `application/json` em todos os requests com corpo.\n    \n- **Identificadores:** `Guid` (UUID) para recursos; rotas com restrição  \n    `{id:guid}` só aceitam UUIDs válidos.\n    \n- **Formato de resposta:** os endpoints retornam um envelope de resultado  \n    (sucesso/erro). Em erros de validação/negócio, a resposta traz a lista de  \n    mensagens correspondentes.\n    \n\n### Códigos de status comuns\n\n| Código | Significado |\n| --- | --- |\n| `200` | OK — operação concluída (consultas e comandos sem retorno de id). |\n| `201` | Created — recurso criado (retorna o identificador gerado). |\n| `400` | Bad Request — falha de validação ou regra de negócio. |\n| `401` | Unauthorized — token ausente ou inválido. |\n| `403` | Forbidden — usuário autenticado, mas sem a role necessária. |\n| `404` | Not Found — recurso não encontrado. |\n\n---\n\n## 🗂️ Variáveis da collection\n\nAlém de `baseUrl`, `version` e `token`, há variáveis de apoio com IDs de  \nexemplo (`clienteId`, `veiculoId`, `ordemServicoId`, `usuarioId`, `perfilId`,  \n`pecaId`, `documento`, `placa`). Substitua pelos valores reais do seu ambiente  \nao executar os fluxos.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "9964925",
+    "_collection_link": "https://go.postman.co/collection/9964925-d1992732-41e9-4eb0-ba65-5e286c272215?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Autenticação",
+      "item": [
+        {
+          "name": "POST Autenticar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();\r",
+                  "\r",
+                  "pm.collectionVariables.set(\"token\", response.token);\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@wrench.com\",\n  \"senha\": \"Bcb@74089018\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Autenticacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Autenticacao"
+              ]
+            },
+            "description": "### Autenticar usuário\n\nValida as credenciais e retorna um **token JWT** de acesso.\n\n**Autorização:** anônimo.\n\n**Corpo (JSON):**\n\n| Campo   | Tipo   | Obrigatório | Descrição                    |\n|---------|--------|-------------|------------------------------|\n| `email` | string | sim         | E-mail do usuário.           |\n| `senha` | string | sim         | Senha do usuário.            |\n\n**Resposta (200):** objeto com o `token` de acesso (e dados associados).\nO script de teste deste request grava o token na variável de collection\n`token` automaticamente.\n\n**Erros comuns:** `400` (credenciais inválidas), `401`."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Autenticação\n\nEmissão de token de acesso (JWT) para consumo da API.\n\nFluxo: envie e-mail e senha em **POST Autenticar**; o token retornado é\ngravado automaticamente na variável `token` e reutilizado pelos demais\nrequests via Bearer no nível da collection.\n\n**Acesso:** anônimo (não exige token)."
+    },
+    {
+      "name": "Gateway — autenticação por CPF",
+      "description": "## Gateway — autenticação por CPF\n\nFluxo de ponta a ponta pelo **API Gateway** do repositório `lambda-auth`.\n\n1. **POST Autenticar por CPF** chama a Lambda de autenticação e grava o token na variável `token`.\n2. As rotas `/api/...` passam pelo **Lambda authorizer**, que valida o token antes de encaminhar ao ALB.\n3. Rotas anônimas da API (login, primeiro acesso, acompanhamento de OS, health e docs) não passam pelo authorizer.\n\nConfigure `gatewayUrl` com o output `api_gateway_url` do ambiente. Os caminhos seguem o formato *slug* da API (`ordem-servico`, minúsculo): o API Gateway diferencia maiúsculas de minúsculas.",
+      "item": [
+        {
+          "name": "POST Autenticar por CPF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", response.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documento\": \"{{documento}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/cpf",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cpf"
+              ]
+            },
+            "description": "### Autenticar cliente por CPF\n\nValida o documento, consulta existência e status do cliente e devolve o JWT.\n\n**Autorização:** anônimo.\n\n| Status | Quando |\n|---|---|\n| `200` | Cliente ativo com perfil `Cliente` — corpo `{ token, username, role }` |\n| `400` | Corpo ou documento inválido |\n| `403` | Cliente inativo, ou usuário sem perfil `Cliente` |\n| `404` | Documento sem cliente ou sem usuário vinculado |"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Aprovar orçamento (rota protegida)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"não foi recusado pelo authorizer\", () => pm.expect(pm.response.code).to.not.be.oneOf([401, 403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v{{version}}/orcamento/{{ordemServicoId}}/aprovar",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "orcamento",
+                "{{ordemServicoId}}",
+                "aprovar"
+              ]
+            },
+            "description": "### Aprovar orçamento pelo gateway\n\nRota protegida: o authorizer valida o token emitido por **POST Autenticar por CPF** e a API exige a role `Cliente`.\n\n**Autorização:** Bearer `{{token}}` herdado da collection."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Acompanhar ordem de serviço (rota pública)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v{{version}}/ordem-servico/{{ordemServicoId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "### Acompanhar ordem de serviço\n\nEndpoint anônimo da API, exposto no gateway sem authorizer.\n\n**Autorização:** anônimo."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar ordens sem token (esperado 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"recusado na borda\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/api/v{{version}}/ordem-servico",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico"
+              ]
+            },
+            "description": "### Rota protegida sem token\n\nDemonstra a proteção na borda: sem o header `Authorization`, o API Gateway responde `401` sem invocar o authorizer nem alcançar a aplicação."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cliente",
+      "item": [
+        {
+          "name": "GET Listar Clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Cliente?NumeroPagina=1&TamanhoPagina=10&OrdenarPor=nome&Decrescente=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Cliente"
+              ],
+              "query": [
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "nome",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "false",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar clientes (paginado)\n\nRetorna todos os clientes de forma paginada e ordenada.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Query params:** `NumeroPagina`, `TamanhoPagina`, `OrdenarPor` (ex.: `nome`),\n`Decrescente`. Ver seção de paginação na descrição da collection.\n\n**Resposta (200):** `ResultadoPaginado<Cliente>` com a lista de clientes e os\nmetadados de paginação."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Cliente por Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Cliente/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Cliente",
+                "{{clienteId}}"
+              ]
+            },
+            "description": "### Buscar cliente por Id\n\nRetorna um cliente específico pelo seu identificador (`Guid`).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `clienteId` — `Guid` do cliente.\n\n**Resposta:** `200` com o cliente; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Cliente por Documento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Cliente/{{documento}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Cliente",
+                "{{documento}}"
+              ]
+            },
+            "description": "### Buscar cliente por documento\n\nRetorna um cliente pelo **documento** (CPF/CNPJ).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `documento` — CPF/CNPJ (somente dígitos).\n\n> A rota compartilha o path de \"por Id\"; valores que não são `Guid` caem  \nautomaticamente na busca por documento. \n  \n\n**Resposta:** `200` com o cliente; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Cadastrar Cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documento\": \"12345678901\",\n  \"nome\": \"Cliente Exemplo\",\n  \"telefone\": \"11999999999\",\n  \"email\": \"cliente@exemplo.com\",\n  \"endereco\": {\n    \"logradouro\": \"Rua A\",\n    \"numero\": \"100\",\n    \"complemento\": \"Apto 10\",\n    \"bairro\": \"Centro\",\n    \"cep\": \"01001000\",\n    \"cidade\": \"São Paulo\",\n    \"unidadeFederativa\": \"SP\",\n    \"pais\": \"Brasil\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Cliente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Cliente"
+              ]
+            },
+            "description": "### Cadastrar cliente\n\nCria um novo cliente com endereço.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo        | Tipo   | Obrigatório | Descrição                        |\n|--------------|--------|-------------|----------------------------------|\n| `documento`  | string | sim         | CPF/CNPJ único do cliente.       |\n| `nome`       | string | sim         | Nome do cliente.                 |\n| `telefone`   | string | sim         | Telefone de contato.             |\n| `email`      | string | sim         | E-mail de contato.               |\n| `endereco`   | object | sim         | Endereço (ver abaixo).           |\n\n**Endereço:** `logradouro`, `numero`, `complemento`, `bairro`, `cep`,\n`cidade`, `unidadeFederativa` (UF), `pais`.\n\n**Resposta (201):** `Guid` do cliente criado.\n**Erros:** `400` (validação/documento duplicado)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar Cliente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"nome\": \"Cliente Atualizado\",\n  \"telefone\": \"11988888888\",\n  \"email\": \"cliente.atualizado@exemplo.com\",\n  \"endereco\": {\n    \"logradouro\": \"Rua B\",\n    \"numero\": \"200\",\n    \"complemento\": \"Casa\",\n    \"bairro\": \"Bairro B\",\n    \"cep\": \"02002000\",\n    \"cidade\": \"São Paulo\",\n    \"unidadeFederativa\": \"SP\",\n    \"pais\": \"Brasil\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Cliente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Cliente"
+              ]
+            },
+            "description": "### Atualizar cliente\n\nAtualiza os dados de um cliente existente. O documento não é alterado.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo       | Tipo   | Obrigatório | Descrição                          |\n|-------------|--------|-------------|------------------------------------|\n| `clienteId` | Guid   | sim         | Id do cliente a atualizar.         |\n| `nome`      | string | sim         | Novo nome.                         |\n| `telefone`  | string | sim         | Novo telefone.                     |\n| `email`     | string | sim         | Novo e-mail.                       |\n| `endereco`  | object | não         | Novo endereço (opcional).          |\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Cliente\n\nCadastro e consulta de clientes da oficina, incluindo endereço.\n\nUm cliente é identificado por `Guid` e possui um **documento** único\n(CPF/CNPJ). É possível buscá-lo por Id ou por documento.\n\n**Autorização:** roles `Admin` ou `Funcionario`."
+    },
+    {
+      "name": "Veículo",
+      "item": [
+        {
+          "name": "GET Listar Veículos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Veiculo?NumeroPagina=1&TamanhoPagina=10&OrdenarPor=marca&Decrescente=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Veiculo"
+              ],
+              "query": [
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "marca",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "false",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar veículos (paginado)\n\nRetorna todos os veículos de forma paginada e ordenada.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Query params:** `NumeroPagina`, `TamanhoPagina`, `OrdenarPor` (ex.: `marca`),\n`Decrescente`.\n\n**Resposta (200):** `ResultadoPaginado<Veiculo>`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Veículo por Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Veiculo/{{veiculoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Veiculo",
+                "{{veiculoId}}"
+              ]
+            },
+            "description": "### Buscar veículo por Id\n\nRetorna um veículo pelo seu identificador (`Guid`).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `veiculoId` — `Guid` do veículo.\n\n**Resposta:** `200` com o veículo; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Veículo por Placa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Veiculo/{{placa}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Veiculo",
+                "{{placa}}"
+              ]
+            },
+            "description": "### Buscar veículo por placa\n\nRetorna um veículo pela sua **placa**.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `placa` — placa do veículo (ex.: `ABC1D23`).\n\n> Compartilha o path de \"por Id\"; valores que não são `Guid` caem na busca\n> por placa.\n\n**Resposta:** `200` com o veículo; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Cadastrar Veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"marca\": \"Toyota\",\n  \"modelo\": \"Corolla\",\n  \"cor\": \"Prata\",\n  \"anoFabricacao\": 2022,\n  \"anoModelo\": 2023,\n  \"placaDoVeiculo\": \"ABC1D23\",\n  \"descricao\": \"Veículo de teste\",\n  \"ultimaRevisao\": \"2025-01-01T00:00:00Z\",\n  \"quilometragemAtual\": 25000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Veiculo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Veiculo"
+              ]
+            },
+            "description": "### Cadastrar veículo\n\nCria um veículo vinculado a um cliente.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo                | Tipo    | Obrigatório | Descrição                          |\n|----------------------|---------|-------------|------------------------------------|\n| `clienteId`          | Guid    | sim         | Cliente dono do veículo.           |\n| `marca`              | string  | sim         | Marca (ex.: `Toyota`).             |\n| `modelo`             | string  | sim         | Modelo (ex.: `Corolla`).           |\n| `cor`                | string  | sim         | Cor do veículo.                    |\n| `anoFabricacao`      | int     | sim         | Ano de fabricação.                 |\n| `anoModelo`          | int     | sim         | Ano do modelo.                     |\n| `placaDoVeiculo`     | string  | sim         | Placa.                             |\n| `descricao`          | string  | não         | Observações.                       |\n| `ultimaRevisao`      | date    | não         | Data da última revisão (ISO 8601). |\n| `quilometragemAtual` | int     | sim         | KM atual.                          |\n\n**Resposta (201):** `Guid` do veículo criado."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar Veículo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"veiculoId\": \"{{veiculoId}}\",\n  \"clienteId\": \"{{clienteId}}\",\n  \"marca\": \"Toyota\",\n  \"modelo\": \"Corolla\",\n  \"cor\": \"Preto\",\n  \"anoFabricacao\": 2022,\n  \"anoModelo\": 2023,\n  \"placaDoVeiculo\": \"ABC1D23\",\n  \"descricao\": \"Atualização\",\n  \"ultimaRevisao\": \"2025-02-01T00:00:00Z\",\n  \"quilometragemAtual\": 30000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Veiculo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Veiculo"
+              ]
+            },
+            "description": "### Atualizar veículo\n\nAtualiza os dados de um veículo existente.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):** mesmos campos do cadastro, acrescido de `veiculoId` (`Guid`)\nidentificando o veículo a atualizar.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Veículo\n\nCadastro e consulta dos veículos vinculados aos clientes.\n\nCada veículo pertence a um cliente (`clienteId`) e é identificado por `Guid`,\npodendo também ser localizado pela **placa**.\n\n**Autorização:** roles `Admin` ou `Funcionario`."
+    },
+    {
+      "name": "Ordem de Serviço",
+      "item": [
+        {
+          "name": "POST Criar Ordem de Serviço",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"veiculoId\": \"{{veiculoId}}\",\n  \"descricao\": \"Barulho na suspensão\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico"
+              ]
+            },
+            "description": "### Criar ordem de serviço\n\nAbre uma OS para um cliente e veículo **já cadastrados**.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo       | Tipo   | Obrigatório | Descrição                         |\n|-------------|--------|-------------|-----------------------------------|\n| `clienteId` | Guid   | sim         | Cliente da OS.                    |\n| `veiculoId` | Guid   | sim         | Veículo da OS.                    |\n| `descricao` | string | sim         | Relato/problema informado.        |\n\n**Resposta (201):** `Guid` da OS criada."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Criar Ordem com Cliente e Veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Falha no freio\",\n  \"cliente\": {\n    \"documento\": \"37609411094\",\n    \"nome\": \"Cliente Novo\",\n    \"telefone\": \"11999999999\",\n    \"email\": \"brunocbarreto2012@gmail.com\",\n    \"endereco\": {\n      \"logradouro\": \"Rua C\",\n      \"numero\": \"300\",\n      \"complemento\": \"\",\n      \"bairro\": \"Centro\",\n      \"cep\": \"03003000\",\n      \"cidade\": \"São Paulo\",\n      \"unidadeFederativa\": \"SP\",\n      \"pais\": \"Brasil\"\n    }\n  },\n  \"veiculo\": {\n    \"marca\": \"Honda\",\n    \"modelo\": \"Civic\",\n    \"cor\": \"Cinza\",\n    \"anoFabricacao\": 2021,\n    \"anoModelo\": 2022,\n    \"placaDoVeiculo\": \"XYZ9K80\",\n    \"descricao\": \"Veículo novo\",\n    \"ultimaRevisao\": \"2025-01-01T00:00:00Z\",\n    \"quilometragemAtual\": 15000\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "servico"
+              ]
+            },
+            "description": "### Criar OS com cliente e veículo (fluxo completo)\n\nCria, em uma única chamada, o **cliente**, o **veículo** e a **ordem de\nserviço** correspondente. Útil para atendimento de um cliente novo.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n- `descricao` — relato/problema.\n- `cliente` — objeto de cadastro de cliente (documento, nome, telefone, email,\n  endereço).\n- `veiculo` — objeto de cadastro de veículo (marca, modelo, cor, anos, placa,\n  descrição, última revisão, quilometragem).\n\nO `clienteId` do veículo é preenchido automaticamente com o cliente recém-criado.\n\n**Resposta (201):** `Guid` da OS criada.\n\n> **Atenção à rota:** este request aponta para `.../ordem-servico/servico`,\n> mas a rota efetiva do controller é `.../OrdemServico/servico`. Se receber\n> `404`, ajuste o path."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Finalizar Ordem",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/{{ordemServicoId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "{{ordemServicoId}}",
+                "finalizar"
+              ]
+            },
+            "description": "### Finalizar ordem de serviço\n\nMarca a OS como **finalizada** (serviço concluído, pronta para entrega).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `ordemServicoId` — `Guid` da OS.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro (ex.: OS em estado\nque não permite finalização)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Entregar Ordem",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/{{ordemServicoId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "{{ordemServicoId}}",
+                "entregar"
+              ]
+            },
+            "description": "### Entregar ordem de serviço\n\nRegistra a **entrega** do veículo ao cliente, encerrando a OS.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `ordemServicoId` — `Guid` da OS.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Ordem por Id (anônimo)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/{{ordemServicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "### Consultar OS por Id (anônimo)\n\nRetorna os dados de uma ordem de serviço pelo seu `Guid`. Endpoint **público**\n— permite ao cliente acompanhar sua OS sem autenticação.\n\n**Autorização:** anônimo.\n\n**Parâmetro de rota:** `ordemServicoId` — `Guid` da OS.\n\n**Resposta:** `200` com a OS; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Ordens",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico?NumeroPagina=1&TamanhoPagina=10&OrdenarPor=DataCriacao&Decrescente=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico"
+              ],
+              "query": [
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "DataCriacao",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "true",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar ordens de serviço (paginado)\n\nRetorna todas as OS de forma paginada e ordenada.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Query params:** `NumeroPagina`, `TamanhoPagina`, `OrdenarPor`\n(ex.: `DataCriacao`), `Decrescente`.\n\n**Resposta (200):** `ResultadoPaginado<OrdemServico>`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Ordens por Cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/cliente?clienteId={{clienteId}}&veiculoId={{veiculoId}}&NumeroPagina=1&TamanhoPagina=10&OrdenarPor=DataCriacao&Decrescente=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "cliente"
+              ],
+              "query": [
+                {
+                  "key": "clienteId",
+                  "value": "{{clienteId}}",
+                  "description": "Guid do cliente para filtrar as ordens de serviço."
+                },
+                {
+                  "key": "veiculoId",
+                  "value": "{{veiculoId}}",
+                  "description": "Guid do veículo (opcional) para filtrar as ordens."
+                },
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "DataCriacao",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "true",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar ordens por cliente\n\nRetorna as OS de um cliente, opcionalmente filtradas por veículo.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Query params:**\n\n| Parâmetro   | Tipo | Obrigatório | Descrição                         |\n|-------------|------|-------------|-----------------------------------|\n| `clienteId` | Guid | sim         | Cliente das ordens.               |\n| `veiculoId` | Guid | não         | Filtra por um veículo específico. |\n| `NumeroPagina`, `TamanhoPagina`, `OrdenarPor`, `Decrescente` | — | não | Paginação/ordenação. |\n\n**Resposta (200):** `ResultadoPaginado<OrdemServico>`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Monitoramento de Tempo Médio",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/ordem-servico/monitoramento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "ordem-servico",
+                "monitoramento"
+              ]
+            },
+            "description": "### Monitoramento — tempo médio de execução\n\nRetorna indicadores de **tempo médio de execução** das ordens de serviço,\npara acompanhamento operacional.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Resposta (200):** `MonitoramentoViewModel` com as métricas agregadas."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Ordem de Serviço\n\nNúcleo do fluxo da oficina. Uma OS passa pelos estágios de criação,\ndiagnóstico, orçamento (aprovação/recusa), finalização e entrega.\n\nInclui endpoints de consulta (por Id, listagem paginada, por cliente) e de\n**monitoramento** do tempo médio de execução.\n\n**Autorização:** roles `Admin` ou `Funcionario` (exceto a consulta por Id,\nque é anônima)."
+    },
+    {
+      "name": "Diagnóstico",
+      "item": [
+        {
+          "name": "PUT Solicitar Diagnóstico",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordemServicoId\": \"{{ordemServicoId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Diagnostico"
+              ]
+            },
+            "description": "### Solicitar diagnóstico\n\nColoca a ordem de serviço em **diagnóstico**, sinalizando que a análise\ntécnica deve ser realizada.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo            | Tipo | Obrigatório | Descrição            |\n|------------------|------|-------------|----------------------|\n| `ordemServicoId` | Guid | sim         | OS a diagnosticar.   |\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Realizar Diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordemServicoId\": \"{{ordemServicoId}}\",\n  \"valorEstimado\": 850.5,\n  \"solucaoProposta\": \"Troca de pastilhas e disco\",\n  \"pecas\": [\n    \"{{pecaId}}\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Diagnostico"
+              ]
+            },
+            "description": "### Registrar diagnóstico\n\nRegistra o resultado do diagnóstico: valor estimado, solução proposta e peças\nnecessárias. Serve de base para a geração do orçamento.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo             | Tipo     | Obrigatório | Descrição                              |\n|-------------------|----------|-------------|----------------------------------------|\n| `ordemServicoId`  | Guid     | sim         | OS diagnosticada.                      |\n| `valorEstimado`   | decimal  | sim         | Valor estimado do serviço.             |\n| `solucaoProposta` | string   | sim         | Descrição da solução.                  |\n| `pecas`           | Guid[]   | não         | Ids das peças necessárias.             |\n\n**Resposta (201):** `Guid` do diagnóstico registrado."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Diagnóstico\n\nSolicitação e registro do diagnóstico técnico de uma ordem de serviço.\n\n`PUT` **solicita** o diagnóstico (muda o estado da OS); `POST` **registra** o\nresultado, com valor estimado, solução proposta e peças necessárias.\n\n**Autorização:** roles `Admin` ou `Funcionario`."
+    },
+    {
+      "name": "Orçamento",
+      "item": [
+        {
+          "name": "PUT Aprovar Orçamento",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Orcamento/{{ordemServicoId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Orcamento",
+                "{{ordemServicoId}}",
+                "aprovar"
+              ]
+            },
+            "description": "### Aprovar orçamento\n\nO **cliente** aprova o orçamento da OS, liberando a execução do serviço.\n\n**Autorização:** `Cliente`.\n\n**Parâmetro de rota:** `ordemServicoId` — `Guid` da OS.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Recusar Orçamento",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivoRecusa\": \"Valor acima do esperado\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Orcamento/{{ordemServicoId}}/recusar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Orcamento",
+                "{{ordemServicoId}}",
+                "recusar"
+              ]
+            },
+            "description": "### Recusar orçamento\n\nO **cliente** recusa o orçamento da OS, informando o motivo.\n\n**Autorização:** `Cliente`.\n\n**Parâmetro de rota:** `ordemServicoId` — `Guid` da OS.\n\n**Corpo (JSON):**\n\n| Campo          | Tipo   | Obrigatório | Descrição              |\n|----------------|--------|-------------|------------------------|\n| `motivoRecusa` | string | sim         | Justificativa da recusa. |\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Orçamento\n\nDecisão do **cliente** sobre o orçamento gerado a partir do diagnóstico.\n\nO cliente pode **aprovar** (segue para execução) ou **recusar** (informando o\nmotivo) o orçamento da ordem de serviço.\n\n**Autorização:** role `Cliente`."
+    },
+    {
+      "name": "Peça",
+      "item": [
+        {
+          "name": "GET Peça por Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca/{{pecaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca",
+                "{{pecaId}}"
+              ]
+            },
+            "description": "### Buscar peça por Id\n\nRetorna uma peça/insumo pelo seu identificador (`Guid`).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `pecaId` — `Guid` da peça.\n\n**Resposta:** `200` com a peça; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Peças",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca?NumeroPagina=1&TamanhoPagina=10&OrdenarPor=nome&Decrescente=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca"
+              ],
+              "query": [
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "nome",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "false",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar peças (paginado)\n\nRetorna todas as peças/insumos de forma paginada e ordenada.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Query params:** `NumeroPagina`, `TamanhoPagina`, `OrdenarPor` (ex.: `nome`),\n`Decrescente`.\n\n**Resposta (200):** `ResultadoPaginado<Peca>`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Cadastrar Peça",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Pastilha de Freio\",\n  \"descricao\": \"Pastilha dianteira\",\n  \"valor\": 199.9,\n  \"quantidade\": 20,\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca"
+              ]
+            },
+            "description": "### Cadastrar peça\n\nCria uma nova peça/insumo com estoque inicial.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo        | Tipo    | Obrigatório | Descrição                 |\n|--------------|---------|-------------|---------------------------|\n| `nome`       | string  | sim         | Nome da peça.             |\n| `descricao`  | string  | não         | Descrição.                |\n| `valor`      | decimal | sim         | Valor unitário.           |\n| `quantidade` | int     | sim         | Estoque inicial.          |\n| `ativo`      | bool    | sim         | Se a peça já entra ativa. |\n\n**Resposta (201):** `Guid` da peça criada."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar Peça",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{pecaId}}\",\n  \"nome\": \"Pastilha de Freio Premium\",\n  \"descricao\": \"Atualização de descrição\",\n  \"valor\": 219.9,\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca"
+              ]
+            },
+            "description": "### Atualizar peça\n\nAtualiza os dados cadastrais de uma peça (não altera estoque).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Corpo (JSON):**\n\n| Campo       | Tipo    | Obrigatório | Descrição              |\n|-------------|---------|-------------|------------------------|\n| `id`        | Guid    | sim         | Id da peça.            |\n| `nome`      | string  | sim         | Novo nome.             |\n| `descricao` | string  | não         | Nova descrição.        |\n| `valor`     | decimal | sim         | Novo valor.            |\n| `ativo`     | bool    | sim         | Situação (ativo/inativo). |\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Repor Estoque",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca/{{pecaId}}/repor?quantidade=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca",
+                "{{pecaId}}",
+                "repor"
+              ],
+              "query": [
+                {
+                  "key": "quantidade",
+                  "value": "10",
+                  "description": "Quantidade de itens a movimentar no estoque."
+                }
+              ]
+            },
+            "description": "### Repor estoque\n\nAdiciona uma quantidade ao estoque de uma peça.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `pecaId` — `Guid` da peça.\n**Query param:** `quantidade` (int) — quantidade a repor.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Baixar Estoque",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca/{{pecaId}}/baixar?quantidade=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca",
+                "{{pecaId}}",
+                "baixar"
+              ],
+              "query": [
+                {
+                  "key": "quantidade",
+                  "value": "1",
+                  "description": "Quantidade de itens a movimentar no estoque."
+                }
+              ]
+            },
+            "description": "### Baixar estoque\n\nRemove uma quantidade do estoque de uma peça (consumo).\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `pecaId` — `Guid` da peça.\n**Query param:** `quantidade` (int) — quantidade a baixar.\n\n**Resposta:** `200` em caso de sucesso; `400` (estoque insuficiente)/`404`."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Ativar Peça",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca/{{pecaId}}/ativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca",
+                "{{pecaId}}",
+                "ativar"
+              ]
+            },
+            "description": "### Ativar peça\n\nReativa uma peça/insumo previamente desativado, tornando-o disponível.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `pecaId` — `Guid` da peça.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Desativar Peça",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Peca/{{pecaId}}/desativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Peca",
+                "{{pecaId}}",
+                "desativar"
+              ]
+            },
+            "description": "### Desativar peça\n\nDesativa uma peça/insumo, impedindo seu uso em novos serviços.\n\n**Autorização:** `Admin`, `Funcionario`.\n\n**Parâmetro de rota:** `pecaId` — `Guid` da peça.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Peça\n\nGestão de peças e insumos utilizados nos serviços, incluindo controle de\nestoque (reposição e baixa) e ativação/desativação do item.\n\n**Autorização:** roles `Admin` ou `Funcionario`."
+    },
+    {
+      "name": "Perfil",
+      "item": [
+        {
+          "name": "GET Listar Perfis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Perfil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Perfil"
+              ]
+            },
+            "description": "### Listar perfis\n\nRetorna todos os perfis de acesso disponíveis no sistema. Usado, por exemplo,\npara preencher o `perfilId` ao criar um usuário.\n\n**Autorização:** `Admin`.\n\n**Resposta (200):** lista de perfis (`PerfilViewModel`)."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Perfil\n\nConsulta dos perfis de acesso disponíveis no sistema (usados na criação de\nusuários).\n\n**Autorização:** role `Admin`."
+    },
+    {
+      "name": "Usuário",
+      "item": [
+        {
+          "name": "POST Criar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@wrench.com\",\n  \"perfilId\": \"{{perfilId}}\",\n  \"senha\": \"123456\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario"
+              ]
+            },
+            "description": "### Criar usuário\n\nCria um novo usuário do sistema, associado a um perfil.\n\n**Autorização:** `Admin`.\n\n**Corpo (JSON):**\n\n| Campo      | Tipo   | Obrigatório | Descrição                         |\n|------------|--------|-------------|-----------------------------------|\n| `email`    | string | sim         | E-mail (login) do usuário.        |\n| `perfilId` | Guid   | sim         | Perfil de acesso (ver Perfil).    |\n| `senha`    | string | sim         | Senha inicial.                    |\n| `ativo`    | bool   | sim         | Se o usuário já entra ativo.      |\n\n**Resposta (201):** `Guid` do usuário criado."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Usuários",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario?NumeroPagina=1&TamanhoPagina=10&OrdenarPor=email&Decrescente=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario"
+              ],
+              "query": [
+                {
+                  "key": "NumeroPagina",
+                  "value": "1",
+                  "description": "Página desejada (baseada em 1). Padrão: 1."
+                },
+                {
+                  "key": "TamanhoPagina",
+                  "value": "10",
+                  "description": "Itens por página. Padrão: 10."
+                },
+                {
+                  "key": "OrdenarPor",
+                  "value": "email",
+                  "description": "Campo usado para ordenação (ex.: nome, marca, DataCriacao)."
+                },
+                {
+                  "key": "Decrescente",
+                  "value": "false",
+                  "description": "true para ordenação decrescente; false para crescente."
+                }
+              ]
+            },
+            "description": "### Listar usuários (paginado)\n\nRetorna todos os usuários de forma paginada e ordenada.\n\n**Autorização:** `Admin`.\n\n**Query params:** `NumeroPagina`, `TamanhoPagina`, `OrdenarPor` (ex.: `email`),\n`Decrescente`.\n\n**Resposta (200):** `ResultadoPaginado<Usuario>`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Usuário por Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario/{{usuarioId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario",
+                "{{usuarioId}}"
+              ]
+            },
+            "description": "### Buscar usuário por Id\n\nRetorna um usuário pelo seu identificador (`Guid`).\n\n**Autorização:** `Admin`.\n\n**Parâmetro de rota:** `usuarioId` — `Guid` do usuário.\n\n**Resposta:** `200` com o usuário; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Ativar Usuário",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario/{{usuarioId}}/ativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario",
+                "{{usuarioId}}",
+                "ativar"
+              ]
+            },
+            "description": "### Ativar usuário\n\nAtiva o acesso de um usuário.\n\n**Autorização:** `Admin`.\n\n**Parâmetro de rota:** `usuarioId` — `Guid` do usuário.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Inativar Usuário",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario/{{usuarioId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario",
+                "{{usuarioId}}"
+              ]
+            },
+            "description": "### Inativar usuário\n\nInativa (desativa) um usuário. Não é uma exclusão física — o usuário deixa de\nter acesso.\n\n**Autorização:** `Admin`.\n\n**Parâmetro de rota:** `usuarioId` — `Guid` do usuário.\n\n**Resposta:** `200`/`204` em caso de sucesso; `404` se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Primeiro Acesso (anônimo)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@wrench.com\",\n  \"senha\": \"novaSenha123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario/primeiro-acesso",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario",
+                "primeiro-acesso"
+              ]
+            },
+            "description": "### Primeiro acesso\n\nPermite ao usuário definir sua senha no primeiro acesso. Endpoint **público**.\n\n**Autorização:** anônimo.\n\n**Corpo (JSON):**\n\n| Campo   | Tipo   | Obrigatório | Descrição                 |\n|---------|--------|-------------|---------------------------|\n| `email` | string | sim         | E-mail do usuário.        |\n| `senha` | string | sim         | Nova senha definida.      |\n\n**Resposta:** `200` em caso de sucesso; `400` em erro de validação."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Resetar Acesso",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v{{version}}/Usuario/{{usuarioId}}/resetar-acesso",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v{{version}}",
+                "Usuario",
+                "{{usuarioId}}",
+                "resetar-acesso"
+              ]
+            },
+            "description": "### Resetar acesso\n\nReseta o acesso/senha de um usuário (fluxo administrativo). Após o reset, o\nusuário normalmente precisa refazer o primeiro acesso.\n\n**Autorização:** `Admin`.\n\n**Parâmetro de rota:** `usuarioId` — `Guid` do usuário.\n\n**Resposta:** `200` em caso de sucesso; `400`/`404` em erro."
+          },
+          "response": []
+        }
+      ],
+      "description": "## Usuário\n\nGestão de usuários do sistema: criação, listagem, consulta, ativação,\ninativação, primeiro acesso e reset de senha.\n\nO **primeiro acesso** é anônimo (o usuário define a senha inicial); as demais\noperações são administrativas.\n\n**Autorização:** role `Admin` (exceto _primeiro acesso_, anônimo)."
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:5001",
+      "description": "Host base da API (ex.: https://localhost:5001). Ajuste por ambiente."
+    },
+    {
+      "key": "version",
+      "value": "1",
+      "description": "Versão da API usada na URL (api/v{version}/...)."
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "JWT de acesso. Preenchido automaticamente pelo POST Autenticar."
+    },
+    {
+      "key": "clienteId",
+      "value": "00000000-0000-0000-0000-000000000001",
+      "description": "Guid de um cliente de exemplo. Substitua por um Id real."
+    },
+    {
+      "key": "veiculoId",
+      "value": "00000000-0000-0000-0000-000000000002",
+      "description": "Guid de um veículo de exemplo. Substitua por um Id real."
+    },
+    {
+      "key": "ordemServicoId",
+      "value": "00000000-0000-0000-0000-000000000003",
+      "description": "Guid de uma ordem de serviço de exemplo. Substitua por um Id real."
+    },
+    {
+      "key": "usuarioId",
+      "value": "00000000-0000-0000-0000-000000000004",
+      "description": "Guid de um usuário de exemplo. Substitua por um Id real."
+    },
+    {
+      "key": "perfilId",
+      "value": "00000000-0000-0000-0000-000000000005",
+      "description": "Guid de um perfil de exemplo. Obtenha via GET Listar Perfis."
+    },
+    {
+      "key": "pecaId",
+      "value": "00000000-0000-0000-0000-000000000006",
+      "description": "Guid de uma peça de exemplo. Substitua por um Id real."
+    },
+    {
+      "key": "documento",
+      "value": "12345678901",
+      "description": "CPF/CNPJ de exemplo para busca de cliente por documento."
+    },
+    {
+      "key": "placa",
+      "value": "ABC1D23",
+      "description": "Placa de exemplo para busca de veículo por placa."
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "https://<api-id>.execute-api.us-east-1.amazonaws.com",
+      "description": "URL do API Gateway do ambiente (output api_gateway_url do lambda-auth, exibida no resumo do pipeline)."
+    }
+  ]
+}

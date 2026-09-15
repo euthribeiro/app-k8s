@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\wrench.auto.repair.autenticacao.domain\wrench.auto.repair.autenticacao.domain.csproj" />
+    <ProjectReference Include="..\wrench.auto.repair.autenticacao.infra\wrench.auto.repair.autenticacao.infra.csproj" />
+    <ProjectReference Include="..\wrench.auto.repair.core\wrench.auto.repair.core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="16.1.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.7.1" />
+  </ItemGroup>
+
+</Project>

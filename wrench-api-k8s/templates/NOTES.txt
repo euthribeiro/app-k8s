@@ -1,0 +1,14 @@
+Chart "{{ .Chart.Name }}" (release "{{ .Release.Name }}") implantado no namespace "{{ .Values.namespace }}".
+
+1. Verifique se os pods subiram:
+   kubectl get pods -n {{ .Values.namespace }}
+
+2. A API é exposta pelo Gateway no hostname:
+   http://{{ .Values.httpRoute.hostname }}
+
+3. Descubra o endereço do Gateway (ALB provisionado pela AWS):
+   kubectl get gateway {{ .Values.gateway.name }} -n {{ .Values.namespace }} \
+     -o jsonpath="{.status.addresses[0].value}"
+
+4. Rode os testes de conectividade do chart:
+   helm test {{ .Release.Name }}

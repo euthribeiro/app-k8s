@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrench-api-deployment
+  namespace: {{ .Values.namespace }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: wrench-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: wrench-api
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: wrench-api-container
+          image: {{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.api.containerPort }}
+          envFrom:
+            - secretRef:
+                name: db-credentials
+            - secretRef:
+                name: newrelic-credentials
+          resources:
+            requests:
+              memory: {{ .Values.api.resources.requests.memory | quote }}
+              cpu: {{ .Values.api.resources.requests.cpu | quote }}
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.api.containerPort }}
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.api.containerPort }}
+            periodSeconds: 30
+            timeoutSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.api.containerPort }}
+            periodSeconds: 30
+            timeoutSeconds: 15

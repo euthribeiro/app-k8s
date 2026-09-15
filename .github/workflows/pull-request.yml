@@ -1,0 +1,37 @@
+name: Validação de Pull Request
+
+on:
+  pull_request:
+    branches: ['master', 'develop']
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/dotnet-ci.yml
+    secrets: inherit
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm CLI
+        uses: azure/setup-helm@v5
+
+      - name: Helm lint
+        run: helm lint ./wrench-api-k8s
+
+      - name: Helm template
+        run: |
+          helm template wrench ./wrench-api-k8s \
+            --set api.image.repository=exemplo \
+            --set api.image.tag=0.0.0 \
+            --set gateway.certificateArn=arn:aws:acm:us-east-1:000000000000:certificate/exemplo \
+            --set httpRoute.hostname=exemplo.bgt3.com.br \
+            --set database.host=exemplo \
+            --set database.name=exemplo \
+            --set database.user=exemplo \
+            --set database.password=exemplo \
+            --set application.admin.password=exemplo \
+            --set jwt.signingKey=exemplo \
+            > /dev/null

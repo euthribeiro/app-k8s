@@ -1,0 +1,18 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wrench-http-route
+  namespace: {{ .Values.namespace }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      {{- if .Values.gateway.certificateArn }}
+      sectionName: https
+      {{- end }}
+  hostnames: ['{{ .Values.httpRoute.hostname }}']
+  rules:
+    - backendRefs:
+        - name: wrench-api-svc
+          port: {{ .Values.api.containerPort }}
+
+

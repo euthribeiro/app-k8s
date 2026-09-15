@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Asp.Versioning.Mvc" Version="10.0.0" />
+        <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
+        <PackageReference Include="MediatR" Version="14.1.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
+        <PackageReference Include="Scalar.AspNetCore" Version="2.13.22" />
+
+        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+        <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+        <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+        <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+        <PackageReference Include="Serilog.Enrichers.Span" Version="3.1.0" />
+        <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
+
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.18.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.18.0-beta.1" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\wrench.auto.repair.cadastro.application\wrench.auto.repair.cadastro.application.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.cadastro.domain\wrench.auto.repair.cadastro.domain.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.cadastro.infra\wrench.auto.repair.cadastro.infra.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.core\wrench.auto.repair.core.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.estoque.application\wrench.auto.repair.estoque.application.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.estoque.domain\wrench.auto.repair.estoque.domain.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.estoque.infra\wrench.auto.repair.estoque.infra.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.ordem.servico.application\wrench.auto.repair.ordem.servico.application.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.ordem.servico.domain\wrench.auto.repair.ordem.servico.domain.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.ordem.servico.infra\wrench.auto.repair.ordem.servico.infra.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.autenticacao.application\wrench.auto.repair.autenticacao.application.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.autenticacao.domain\wrench.auto.repair.autenticacao.domain.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.autenticacao.infra\wrench.auto.repair.autenticacao.infra.csproj" />
+      <ProjectReference Include="..\wrench.auto.repair.infra\wrench.auto.repair.infra.csproj" />
+    </ItemGroup>
+
+</Project>

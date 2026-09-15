@@ -1,0 +1,16 @@
+# CRD "vended" da AWS. Configura o ALB do Gateway:
+#   - scheme: internet-facing (default do LBC e "internal" - por isso e obrigatorio aqui)
+#   - listener HTTPS:443 com o certificado ACM, quando gateway.certificateArn e setado
+# Referenciada pelo Gateway em spec.infrastructure.parametersRef.
+apiVersion: gateway.k8s.aws/v1beta1
+kind: LoadBalancerConfiguration
+metadata:
+  name: {{ .Values.gateway.name }}-lbconfig
+  namespace: {{ .Values.namespace }}
+spec:
+  scheme: {{ .Values.gateway.scheme | default "internet-facing" }}
+  {{- if .Values.gateway.certificateArn }}
+  listenerConfigurations:
+    - protocolPort: HTTPS:443
+      defaultCertificate: {{ .Values.gateway.certificateArn | quote }}
+  {{- end }}

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wrench-api-svc
+  namespace: production
+spec:
+  type: ClusterIP
+  selector:
+    app: wrench-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080

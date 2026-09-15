@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: db_wrench
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_wrench"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  unit-tests:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    volumes:
+      - ..:/src:cached
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["bash", "-lc", "dotnet restore && dotnet test tests/wrench.auto.repair.core.tests/wrench.auto.repair.core.tests.csproj --logger \"trx;LogFileName=unit-tests.trx\""]
+
+  integration-tests:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    volumes:
+      - ..:/src:cached
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["bash", "-lc", "dotnet restore && for proj in tests/*integration*/*.csproj tests/*integration*/*/*.csproj; do if [ -f \"$proj\" ]; then dotnet test \"$proj\" --logger \"trx;LogFileName=integration-tests.trx\"; fi; done"]
+
+volumes:
+  pgdata:

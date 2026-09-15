@@ -1,0 +1,154 @@
+name: Deploy Wrench API
+
+env:
+  CHART_DIR: ./wrench-api-k8s
+  OUTPUTS_DIR: ./.github/terraform-outputs
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Ambiente de execução (homologacao ou production)'
+        required: true
+        type: string
+
+      hostname:
+        description: 'Hostname público da API neste ambiente'
+        required: true
+        type: string
+
+      release_name:
+        description: 'Nome do release Helm neste ambiente'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next version
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          tag_prefix: ''
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+
+      - name: Ler outputs de infra-k8s e infra-db
+        id: infra
+        run: |
+          terraform -chdir="$OUTPUTS_DIR" init -input=false
+          terraform -chdir="$OUTPUTS_DIR" apply -auto-approve -input=false \
+            -var="tfc_organization=${{ vars.TFC_ORGANIZATION }}" \
+            -var="infra_workspace=${{ vars.TFC_WORKSPACE_INFRA }}" \
+            -var="rds_workspace=${{ vars.TFC_WORKSPACE_RDS }}" \
+            -var="email_workspace=${{ vars.TFC_WORKSPACE_EMAIL }}" \
+            -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}"
+          for saida in cluster_name acm_certificate_arn database_hostname database_name \
+                       app_ses_irsa_role_arn api_repository chart_repository chart_repository_url; do
+            echo "$saida=$(terraform -chdir="$OUTPUTS_DIR" output -raw "$saida")" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Setup AWS ECR Details
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login_aws_ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Kubeconfig for EKS
+        env:
+          CLUSTER_NAME: ${{ steps.infra.outputs.cluster_name }}
+        run: |
+          aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name "$CLUSTER_NAME"
+
+      - name: Build and push the tagged docker image to Amazon ECR
+        env:
+          ECR_REPOSITORY: ${{ steps.infra.outputs.api_repository }}
+          IMAGE_TAG: ${{ steps.tag.outputs.new_version }}
+        run: |
+          cd wrench.auto.repair
+          docker build -t "$ECR_REPOSITORY:$IMAGE_TAG" -f ./scripts/Dockerfile .
+          docker push "$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Set up Helm CLI
+        uses: azure/setup-helm@v5
+
+      - name: Package and Push Helm to Amazon ECR
+        env:
+          ECR_REPOSITORY: ${{ steps.infra.outputs.chart_repository }}
+          VERSION: ${{ steps.tag.outputs.new_version }}
+        run: |
+          helm package "$CHART_DIR" --version "$VERSION" --app-version "$VERSION"
+          CHART_PACKAGE=$(ls wrench-api-*.tgz)
+          helm push "$CHART_PACKAGE" "oci://$ECR_REPOSITORY"
+
+      - name: Helm Deploy
+        env:
+          ECR_REPOSITORY: ${{ steps.infra.outputs.chart_repository_url }}
+          API_REPO: ${{ steps.infra.outputs.api_repository }}
+          VERSION: ${{ steps.tag.outputs.new_version }}
+          ACM_ARN: ${{ steps.infra.outputs.acm_certificate_arn }}
+          DB_HOST: ${{ steps.infra.outputs.database_hostname }}
+          DB_NAME: ${{ steps.infra.outputs.database_name }}
+          DB_USERNAME: ${{ secrets.APPLICATION_DATABASE_USERNAME }}
+          DB_PASSWORD: ${{ secrets.APPLICATION_DB_PASSWORD }}
+          REGION: ${{ vars.AWS_REGION }}
+          NO_REPLY: ${{ secrets.NO_REPLY_EMAIL }}
+          ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          JWT_ISSUER: ${{ vars.JWT_ISSUER }}
+          JWT_AUDIENCE: ${{ vars.JWT_AUDIENCE }}
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          SES_ROLE_ARN: ${{ steps.infra.outputs.app_ses_irsa_role_arn }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          HOSTNAME: ${{ inputs.hostname }}
+          RELEASE: ${{ inputs.release_name }}
+        run: |
+          helm upgrade --install "$RELEASE" \
+            "oci://$ECR_REPOSITORY" \
+            --version "$VERSION" \
+            -n "$ENVIRONMENT" --create-namespace \
+            --set api.image.repository="$API_REPO" \
+            --set api.image.tag="$VERSION" \
+            --set gateway.name=bgt3-gw \
+            --set gateway.certificateArn="$ACM_ARN" \
+            --set httpRoute.hostname="$HOSTNAME" \
+            --set database.host="$DB_HOST" \
+            --set database.name="$DB_NAME" \
+            --set database.user="$DB_USERNAME" \
+            --set database.password="$DB_PASSWORD" \
+            --set application.no_reply.email="$NO_REPLY" \
+            --set application.admin.email="$ADMIN_EMAIL" \
+            --set application.admin.password="$ADMIN_PASSWORD" \
+            --set jwt.issuer="$JWT_ISSUER" \
+            --set jwt.audience="$JWT_AUDIENCE" \
+            --set jwt.signingKey="$JWT_SIGNING_KEY" \
+            --set application.credentials.aws.region="$REGION" \
+            --set serviceAccount.roleArn="$SES_ROLE_ARN" \
+            --set newRelic.licenseKey="$NEW_RELIC_LICENSE_KEY"
+
+      - name: Wait Gateway ALB
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          kubectl -n "$ENVIRONMENT" wait --for=condition=Programmed \
+            gateway/bgt3-gw --timeout=10m

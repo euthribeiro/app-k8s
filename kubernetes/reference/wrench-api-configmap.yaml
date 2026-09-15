@@ -1,0 +1,10 @@
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: wrench-api-configmap
+#   namespace: production
+# data:
+#   HOST_DB: wrench-db-svc:5432
+#   USER_DB: postgres
+#   PASS_DB: postgres
+#   DATABASE_DB: db_wrench

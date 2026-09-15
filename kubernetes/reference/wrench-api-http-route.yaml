@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wrench-https-redirect
+  namespace: production
+spec:
+  parentRefs:
+    - name: bgt3-gw
+      sectionName: http
+  hostnames: ['api.bgt3.com.br']
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

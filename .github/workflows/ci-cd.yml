@@ -1,0 +1,33 @@
+name: Wrench API
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: ['master', 'develop']
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/dotnet-ci.yml
+    secrets: inherit
+
+  deploy-homologacao:
+    if: github.ref == 'refs/heads/develop'
+    needs: build-and-test
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment: 'homologacao'
+      hostname: 'hml-api.bgt3.com.br'
+      release_name: 'wrench-hml'
+
+  deploy-producao:
+    if: github.ref == 'refs/heads/master'
+    needs: build-and-test
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment: 'production'
+      hostname: 'api.bgt3.com.br'
+      release_name: 'wrench'

@@ -1,0 +1,10 @@
+apiVersion: gateway.k8s.aws/v1beta1
+kind: TargetGroupConfiguration
+metadata:
+  name: wrench-api-tg
+  namespace: production
+spec:
+  targetReference:
+    name: wrench-api-svc
+  defaultConfiguration:
+    targetType: ip

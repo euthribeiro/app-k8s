@@ -1,0 +1,41 @@
+name: .NET Core CI
+
+on:
+  workflow_call:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restaurar dependências
+        run: dotnet restore wrench.auto.repair/wrench.auto.repair.sln
+
+      - name: Auditar dependências vulneráveis
+        run: |
+          RELATORIO=$(dotnet list wrench.auto.repair/wrench.auto.repair.sln package \
+            --vulnerable --include-transitive)
+          echo "$RELATORIO"
+          if echo "$RELATORIO" | grep -qE '^\s+>'; then
+            echo "::error::Dependências com vulnerabilidade conhecida encontradas."
+            exit 1
+          fi
+
+      - name: Build da aplicação
+        run: dotnet build wrench.auto.repair/wrench.auto.repair.sln --configuration Release --no-restore
+
+      - name: Executar testes unitários
+        env:
+          ASPNETCORE_ENVIRONMENT: 'Development'
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_SES }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_SES }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
+        run: dotnet test wrench.auto.repair/wrench.auto.repair.sln --configuration Release --no-build --verbosity normal

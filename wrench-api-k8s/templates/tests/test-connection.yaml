@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-connection"
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wrench-api-k8s.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    # Valida que a API responde no health check de readiness
+    - name: api-health
+      image: curlimages/curl:latest
+      command: ['curl']
+      args:
+        - '--fail'
+        - '--silent'
+        - '--show-error'
+        - 'http://wrench-api-svc:{{ .Values.api.containerPort }}/health/ready'
