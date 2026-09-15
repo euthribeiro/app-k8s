@@ -13,9 +13,10 @@ e `clusterName = 'eks-wrench-auto-repair'`. Os dois valores são variáveis do s
 As rotas usam `SlugifyParameterTransformer`, então `OrdemServicoController` aparece como
 `api/v1/ordem-servico` em `http.route`.
 
-A versão do SDK do OpenTelemetry define se os atributos HTTP seguem a convenção antiga
-(`http.method`, `http.status_code`) ou a nova (`http.request.method`, `http.response.status_code`).
-As consultas usam `coalesce` entre as duas. Para inspecionar os atributos disponíveis:
+A instrumentação OpenTelemetry da API (1.18) segue a convenção semântica estável: `http.request.method`
+e `http.response.status_code` nos spans de servidor, `server.address` e `url.full` nos spans de
+cliente. As consultas usam apenas esses atributos, sem `coalesce`, que as condições de alerta NRQL não
+aceitam. Para inspecionar os atributos disponíveis:
 
 ```sql
 SELECT keyset() FROM Span WHERE service.name = 'wrench-auto-repair-api' SINCE 1 hour ago
@@ -35,8 +36,8 @@ FROM Span
 WHERE service.name = 'wrench-auto-repair-api'
   AND span.kind = 'server'
   AND http.route LIKE '%ordem-servico'
-  AND coalesce(http.request.method, http.method) = 'POST'
-  AND numeric(coalesce(http.response.status_code, http.status_code)) < 400
+  AND http.request.method = 'POST'
+  AND http.response.status_code < 400
 SINCE 30 days ago
 TIMESERIES 1 day
 ```
@@ -89,7 +90,7 @@ As métricas são exportadas com temporalidade delta, então `sum()` devolve as 
 | Latência p50, p95 e p99 | `SELECT percentile(duration.ms, 50, 95, 99) FROM Span WHERE service.name = 'wrench-auto-repair-api' AND span.kind = 'server' TIMESERIES` |
 | Throughput | `SELECT rate(count(*), 1 minute) FROM Span WHERE ... AND span.kind = 'server' TIMESERIES` |
 | Latência p95 por rota | `SELECT percentile(duration.ms, 95), count(*) FROM Span WHERE ... AND http.route IS NOT NULL FACET http.route` |
-| Taxa de erro 5xx | `SELECT percentage(count(*), WHERE numeric(coalesce(http.response.status_code, http.status_code)) >= 500) FROM Span WHERE ... AND span.kind = 'server' TIMESERIES 1 hour` |
+| Taxa de erro 5xx | `SELECT percentage(count(*), WHERE http.response.status_code >= 500) FROM Span WHERE ... AND span.kind = 'server' TIMESERIES 1 hour` |
 | Erros por rota de ordem de serviço | Spans `server` com status >= 500 em rotas de `ordem-servico`, `diagnostico` e `orcamento`, agrupados por rota e status |
 
 ### Página Integrações
