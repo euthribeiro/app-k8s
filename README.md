@@ -45,7 +45,7 @@ flowchart TB
     gw["API Gateway + Lambda authorizer<br/><i>repo lambda-auth</i>"]
 
     subgraph eks["Cluster EKS — namespace production ou homologacao"]
-        alb["Gateway API / ALB"]
+        alb["HTTPRoute do ambiente<br/>Gateway de plataforma e ALB<br/><i>repo infra-k8s</i>"]
         subgraph pod["Deployment wrench-api (HPA 1 a 6)"]
             api["API .NET 10<br/>ASP.NET Core"]
         end
@@ -53,7 +53,7 @@ flowchart TB
         secret["Secrets<br/>db-credentials<br/>newrelic-credentials"]
     end
 
-    rds[("RDS PostgreSQL 18<br/><i>repo infra-db</i>")]
+    rds[("RDS PostgreSQL 18<br/>database do ambiente<br/><i>repo infra-db</i>")]
     ses["Amazon SES"]
     nr["New Relic<br/>traces, métricas, logs"]
 
@@ -192,12 +192,27 @@ A aplicação **não carrega nenhum segredo do repositório**. Todos vêm de for
 | Gatilho | O que acontece |
 |---|---|
 | Pull request para `master` ou `develop` | Build, auditoria de vulnerabilidades, testes, `helm lint` e `helm template` |
-| Push em `develop` | Build e testes, depois deploy em **homologação** (namespace `homologacao`, `hml-api.bgt3.com.br`) |
-| Push em `master` | Build e testes, depois deploy em **produção** (namespace `production`, `api.bgt3.com.br`) |
+| Push em `develop` | Build e testes, depois deploy em **homologação** (namespace `homologacao`, `hml-api.bgt3.com.br`, database `wrench_auto_repair_hml`) |
+| Push em `master` | Build e testes, depois deploy em **produção** (namespace `production`, `api.bgt3.com.br`, database `wrench_auto_repair`) |
+| *Run workflow* do `ci-cd.yml` em `develop` ou `master` | O mesmo deploy da branch, sem novo commit; usado pelo Orquestrador de Provisionamento do `infra-k8s` |
+| *Run workflow* do `destroy.yml` em `develop` ou `master`, com confirmação `DESTRUIR` | Remove o release e o namespace do ambiente da branch; usado pelo Orquestrador de Destruição do `infra-k8s` |
 
 O deploy calcula a próxima versão semântica a partir dos commits, constrói e publica a imagem no
-ECR, empacota e publica o chart, aplica com `helm upgrade --install` e aguarda o ALB do Gateway
-ficar `Programmed`. A branch `master` é protegida e só recebe alterações por Pull Request.
+ECR, empacota e publica o chart, aplica com `helm upgrade --install` no namespace do ambiente e
+aguarda o rollout do deployment e a aceitação da `HTTPRoute` pelo Gateway de plataforma
+`gateway/bgt3-gw`, criado pelo `infra-k8s`. A branch `master` é protegida e só recebe alterações por Pull Request.
+
+### Ambientes
+
+| | Homologação | Produção |
+|---|---|---|
+| Branch | `develop` | `master` |
+| Namespace e release Helm | `homologacao`, `wrench-hml` | `production`, `wrench` |
+| Hostname | `hml-api.bgt3.com.br` | `api.bgt3.com.br` |
+| Database no RDS | `wrench_auto_repair_hml` | `wrench_auto_repair` |
+
+Os dois ambientes compartilham cluster, Gateway de plataforma, ALB e instância RDS, e ficam
+separados por namespace, hostname e database ([ADR 004](./docs/adrs/ADR%20004%20-%20Uso%20de%20HPA.md)).
 
 ### Valores de infraestrutura
 

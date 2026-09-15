@@ -32,11 +32,15 @@ flowchart TB
             alb["ALB internet-facing<br/>AWS Load Balancer Controller"]
 
             subgraph EKS["EKS — eks-wrench-auto-repair"]
+                subgraph GWNS["namespace gateway"]
+                    gw["Gateway bgt3-gw<br/>plataforma, rotas de todos os namespaces"]
+                end
                 subgraph PROD["namespace production"]
-                    gw["Gateway bgt3-gw<br/>HTTPRoute"]
+                    routeProd["HTTPRoute<br/>api.bgt3.com.br"]
                     api["Deployment wrench-api<br/>.NET 10, HPA 1 a 6"]
                 end
                 subgraph HML["namespace homologacao"]
+                    routeHml["HTTPRoute<br/>hml-api.bgt3.com.br"]
                     apiHml["Deployment wrench-api<br/>release wrench-hml"]
                 end
                 subgraph NRNS["namespace newrelic"]
@@ -46,7 +50,7 @@ flowchart TB
             end
         end
 
-        rds[("RDS PostgreSQL 18<br/>db.t4g.micro")]
+        rds[("RDS PostgreSQL 18<br/>wrench_auto_repair<br/>wrench_auto_repair_hml")]
     end
 
     subgraph NR["New Relic"]
@@ -63,9 +67,10 @@ flowchart TB
     apigw -.->|"autoriza"| authz
     apigw -->|"HTTP_PROXY"| dnsApp
     dnsApp --> alb
-    acm -.->|"certificado por hostname"| alb
-    alb --> gw --> api
-    alb --> apiHml
+    acm -.->|"certificado api e hml-api"| alb
+    alb --> gw
+    gw --> routeProd --> api
+    gw --> routeHml --> apiHml
     api -->|"revalida JWT e roles<br/>EF Core, SSL"| dnsDb
     apiHml --> dnsDb
     dnsDb --> rds
@@ -114,7 +119,7 @@ roles de cada endpoint, então uma requisição que não passe pelo gateway rece
 |---|---|---|---|
 | Token JWT | Lambda de autenticação, authorizer e API | `Issuer` e `Audience` `Wrench Auto Repair`, chave `JWT_SIGNING_KEY`, claims `NameIdentifier`, `Name` e `Role` | mesmos valores injetados por secret nos dois repositórios |
 | Colunas lidas pela Lambda | Lambda de autenticação e schema da API | `Clientes(Id, Documento, Email)`, `Usuarios(Id, Email, PerfilId, Ativo)`, `Perfis(Id, Nome)` | teste de contrato no `app-k8s` e `GRANT SELECT` por coluna no `infra-db` |
-| Outputs de infraestrutura | repositórios de infraestrutura e consumidores | `vpc_id`, `public_subnet_ids`, `cluster_name`, `acm_certificate_arn`, `database_hostname`, `database_name`, repositórios ECR | remote state do HCP Terraform |
+| Outputs de infraestrutura | repositórios de infraestrutura e consumidores | `vpc_id`, `public_subnet_ids`, `cluster_name`, `database_hostname`, `database_name`, repositórios ECR | remote state do HCP Terraform |
 
 O modelo de dados completo e os privilégios de cada role estão em
 [Modelo relacional](../database/modelo-relacional.md).
@@ -200,23 +205,33 @@ flowchart TB
 
 | Repositório | `develop` | `master` |
 |---|---|---|
-| `app-k8s` | namespace `homologacao`, `hml-api.bgt3.com.br` | namespace `production`, `api.bgt3.com.br` |
+| `app-k8s` | namespace `homologacao`, `hml-api.bgt3.com.br`, database `wrench_auto_repair_hml` | namespace `production`, `api.bgt3.com.br`, database `wrench_auto_repair` |
 | `lambda-auth` | Lambdas e gateway de homologação | Lambdas e gateway de produção |
 | `infra-k8s`, `infra-db` | PR roda `plan` | `apply` da infraestrutura compartilhada |
 
-Homologação e produção compartilham cluster e banco; a segregação é por namespace, release Helm,
-hostname e gateway ([ADR 004](../adrs/ADR%20004%20-%20Uso%20de%20HPA.md)).
+Homologação e produção compartilham cluster, Gateway de plataforma, ALB e instância RDS. A
+segregação é por namespace, release Helm, hostname, database e API Gateway
+([ADR 004](../adrs/ADR%20004%20-%20Uso%20de%20HPA.md)).
 
 ### Ordem do primeiro provisionamento
 
-1. `infra-k8s`: `infra`, `ecr`, `email`.
-2. `infra-db`: `rds`, depois `roles` com o role da API.
-3. `app-k8s`: primeiro deploy, que cria as tabelas pelas migrations.
-4. `infra-db`: `roles` novamente, concedendo à Lambda o `SELECT` por coluna.
-5. `infra-k8s`: `dns`, `nri-bundle` e `observability`.
-6. `lambda-auth`: Lambdas e API Gateway.
+O **Orquestrador de Provisionamento** do `infra-k8s` executa a sequência a partir de um único
+*Run workflow*, disparando o pipeline de cada repositório e aguardando o anterior terminar:
+
+1. `infra-k8s`: rede, cluster, ECR, e-mail, Gateway de plataforma, DNS e observabilidade.
+2. `infra-db`: instância RDS, databases de produção e de homologação e roles.
+3. `app-k8s`: deploy de homologação e depois de produção; as migrations criam as tabelas em cada
+   database.
+4. `infra-db`: roles novamente, concedendo à Lambda o `SELECT` por coluna nos dois databases.
+5. `lambda-auth`: Lambdas e API Gateway dos dois ambientes.
 
 A concessão por coluna só é aceita com a tabela existente, o que impõe o passo 4 depois do 3.
+
+### Destruição
+
+O **Orquestrador de Destruição** do `infra-k8s` percorre a ordem inversa: `lambda-auth`, `app-k8s`
+(o `destroy.yml` de cada ambiente remove release e namespace), `infra-db` e `infra-k8s`. Remover a
+aplicação antes do cluster evita recursos órfãos ligados ao Gateway e ao ALB.
 
 ## Componentes por camada
 
@@ -230,7 +245,8 @@ A concessão por coluna só é aceita com a tabela existente, o que impõe o pas
 | **Dados** | RDS PostgreSQL 18 | Terraform (`rds/`) | `infra-db` |
 | **Dados** | Role da API e role somente leitura da Lambda | Terraform (`roles/`) | `infra-db` |
 | **Registry** | Repositórios ECR de imagem e de chart | Terraform (`ecr/`) | `infra-k8s` |
-| **Aplicação** | Deployment, Service, HPA, Gateway, Routes, Secrets, ServiceAccount | Helm (`wrench-api-k8s/`) | `app-k8s` |
+| **Entrada HTTP** | Gateway `bgt3-gw` no namespace `gateway`, LoadBalancerConfiguration, ALB | pipeline de infraestrutura | `infra-k8s` |
+| **Aplicação** | Deployment, Service, HPA, HTTPRoutes, TargetGroupConfiguration, Secrets, ServiceAccount | Helm (`wrench-api-k8s/`) | `app-k8s` |
 | **Observabilidade (cluster)** | `nri-bundle` | Helm pelo pipeline | `infra-k8s` |
 | **Observabilidade (plataforma)** | Dashboards, alert policies, synthetic monitor | Terraform (`observability/`) | `infra-k8s` |
 | **Observabilidade (aplicação)** | Serilog, OpenTelemetry, CorrelationId, métricas de negócio | código | `app-k8s` |

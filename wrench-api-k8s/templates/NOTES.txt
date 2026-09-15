@@ -3,12 +3,11 @@ Chart "{{ .Chart.Name }}" (release "{{ .Release.Name }}") implantado no namespac
 1. Verifique se os pods subiram:
    kubectl get pods -n {{ .Values.namespace }}
 
-2. A API é exposta pelo Gateway no hostname:
-   http://{{ .Values.httpRoute.hostname }}
+2. A API é exposta pelo Gateway de plataforma {{ .Values.gateway.namespace }}/{{ .Values.gateway.name }} no hostname:
+   https://{{ .Values.httpRoute.hostname }}
 
-3. Descubra o endereço do Gateway (ALB provisionado pela AWS):
-   kubectl get gateway {{ .Values.gateway.name }} -n {{ .Values.namespace }} \
-     -o jsonpath="{.status.addresses[0].value}"
+3. Confira se a rota foi aceita pelo Gateway:
+   kubectl get httproute wrench-http-route -n {{ .Values.namespace }} -o yaml
 
 4. Rode os testes de conectividade do chart:
-   helm test {{ .Release.Name }}
+   helm test {{ .Release.Name }} -n {{ .Values.namespace }}

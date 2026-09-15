@@ -132,11 +132,15 @@ flowchart TB
         subgraph VPC["VPC 10.0.0.0/16"]
             alb["ALB internet-facing<br/>AWS Load Balancer Controller"]
             subgraph EKS["EKS — eks-wrench-auto-repair"]
+                subgraph GWNS["namespace gateway"]
+                    gw["Gateway bgt3-gw<br/>plataforma, rotas de todos os namespaces"]
+                end
                 subgraph PROD["namespace production"]
-                    gw["Gateway bgt3-gw<br/>HTTPRoute"]
+                    routeProd["HTTPRoute<br/>api.bgt3.com.br"]
                     api["Deployment wrench-api<br/>.NET 10, HPA 1 a 6"]
                 end
                 subgraph HML["namespace homologacao"]
+                    routeHml["HTTPRoute<br/>hml-api.bgt3.com.br"]
                     apiHml["Deployment wrench-api<br/>release wrench-hml"]
                 end
                 subgraph NRNS["namespace newrelic"]
@@ -145,7 +149,7 @@ flowchart TB
                 ms["Metrics Server"]
             end
         end
-        rds[("RDS PostgreSQL 18<br/>db.t4g.micro")]
+        rds[("RDS PostgreSQL 18<br/>wrench_auto_repair<br/>wrench_auto_repair_hml")]
     end
     subgraph NR["New Relic"]
         ingest["Ingest<br/>OTLP e Infrastructure"]
@@ -160,9 +164,10 @@ flowchart TB
     apigw -.->|"autoriza"| authz
     apigw -->|"HTTP_PROXY"| dnsApp
     dnsApp --> alb
-    acm -.->|"certificado por hostname"| alb
-    alb --> gw --> api
-    alb --> apiHml
+    acm -.->|"certificado api e hml-api"| alb
+    alb --> gw
+    gw --> routeProd --> api
+    gw --> routeHml --> apiHml
     api -->|"revalida JWT e roles<br/>EF Core, SSL"| dnsDb
     apiHml --> dnsDb
     dnsDb --> rds

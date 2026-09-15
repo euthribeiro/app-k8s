@@ -11,7 +11,6 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    # Valida que a API responde no health check de readiness
     - name: api-health
       image: curlimages/curl:latest
       command: ['curl']

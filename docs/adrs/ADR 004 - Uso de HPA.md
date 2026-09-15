@@ -38,11 +38,21 @@ behavior:
 
 Subir capacidade cedo demais custa alguns centavos; descer cedo demais custa disponibilidade. Como a carga é intermitente por natureza, uma janela de estabilização curta na descida provocaria oscilação — o *flapping* clássico, em que o HPA remove réplicas e precisa recriá-las em seguida, pagando o custo de inicialização a cada ciclo.
 
-### 3. Segregação de ambientes por namespace, não por cluster
+### 3. Segregação de ambientes por namespace e por database, não por cluster nem por instância
 
-Homologação e produção convivem no **mesmo cluster**, em namespaces distintos (`homologacao` e `production`), com releases Helm separados (`wrench-hml` e `wrench`) e hostnames distintos.
+Homologação e produção convivem no **mesmo cluster** e na **mesma instância RDS**, separados assim:
 
-O gatilho é a branch: `develop` implanta em homologação, `master` em produção.
+| | Homologação | Produção |
+|---|---|---|
+| Branch | `develop` | `master` |
+| Namespace e release Helm | `homologacao`, `wrench-hml` | `production`, `wrench` |
+| Hostname | `hml-api.bgt3.com.br` | `api.bgt3.com.br` |
+| Database no RDS | `wrench_auto_repair_hml` | `wrench_auto_repair` |
+| API Gateway e Lambdas | recursos `*-homologacao` | recursos `*-production` |
+
+A entrada HTTP é um **Gateway de plataforma** único, `gateway/bgt3-gw`, mantido pelo `infra-k8s`: um ALB, um certificado ACM com os dois hostnames e listeners que aceitam rotas de qualquer namespace. Cada release publica apenas as suas `HTTPRoute`, filtradas pelo hostname do ambiente, e o DNS mantém um CNAME por hostname apontando para o mesmo ALB.
+
+Os dois databases pertencem ao role da aplicação, que aplica as migrations em cada um de forma independente. A Lambda de cada ambiente lê apenas o database do seu ambiente.
 
 ---
 
@@ -56,7 +66,11 @@ O gatilho é a branch: `develop` implanta em homologação, `master` em produç�
 
 **Cluster separado para homologação.** É o isolamento ideal: falha em homologação não alcança produção de forma alguma. Descartada por custo — duplicar VPC, EKS, node group e ALB mais que dobra a conta de infraestrutura de um projeto acadêmico, sem contrapartida proporcional. A separação por namespace entrega isolamento de rede, de recursos e de configuração, que é o que o ciclo de desenvolvimento precisa.
 
-**Ambiente de homologação com RDS próprio.** Mesma lógica: uma segunda instância RDS pelo tempo do projeto não se paga. Homologação aponta para o mesmo banco, com base lógica distinta quando necessário. É uma limitação real e está registrada como tal.
+**Instância RDS própria para homologação.** Isolaria também CPU, memória e conexões do banco. Descartada por custo: uma segunda instância pelo tempo do projeto não se paga. Um database separado na mesma instância isola dados e schema, que é o que impede homologação de alterar dados de produção.
+
+**Homologação no mesmo database de produção.** Dispensaria criar e conceder privilégios em um segundo database. Descartada porque as migrations e os dados de teste de homologação passariam a valer em produção.
+
+**Gateway e ALB por ambiente.** Cada release criaria o próprio Gateway e, com ele, um ALB. Descartada porque dobra o custo de balanceador, exige um certificado por ALB e acopla o stack de DNS ao número de ambientes.
 
 ---
 
@@ -68,13 +82,16 @@ O gatilho é a branch: `develop` implanta em homologação, `master` em produç�
 * Picos de atendimento são absorvidos sem intervenção manual.
 * O comportamento assimétrico evita *flapping* e o custo repetido de inicialização.
 * Ter homologação no mesmo cluster valida o caminho real de deploy — mesmo chart, mesmo pipeline, mesmo controller de ALB.
+* Um único ALB e um único certificado atendem os dois ambientes.
+* Migrations e dados de homologação ficam no database `wrench_auto_repair_hml` e não alcançam produção.
 
 **Negativas**
 
 * Com `minReplicas: 1`, a primeira requisição após um período ocioso pode pegar um único pod sob carga fria. Aceitável para o padrão de uso; se incomodar, o piso sobe para 2.
 * CPU não captura degradação por I/O. Uma lentidão no RDS não dispara escala — e escalar não resolveria mesmo.
 * O teto de 6 réplicas é limitado pela capacidade do node group. Estourar esse teto exige Cluster Autoscaler ou Karpenter, que não estão instalados.
-* Homologação e produção compartilham cluster e banco. Um teste de carga em homologação **afeta** produção. É a contrapartida explícita da decisão de custo e precisa ser respeitada na prática: testes de carga rodam em janela combinada.
+* Homologação e produção compartilham cluster e instância RDS. Os dados ficam separados por database, mas CPU, memória e conexões não: um teste de carga em homologação **afeta** produção. É a contrapartida explícita da decisão de custo e precisa ser respeitada na prática: testes de carga rodam em janela combinada.
+* O Gateway `gateway/bgt3-gw` é compartilhado. Alterá-lo ou removê-lo interrompe a entrada HTTP dos dois ambientes; ele pertence ao `infra-k8s`, e o chart da aplicação apenas o referencia.
 * O HPA depende do Metrics Server. Se o addon cair, a escala congela no número atual de réplicas — sem falhar visivelmente. Esse é um caso a cobrir com alerta na frente de observabilidade.
 
 ---

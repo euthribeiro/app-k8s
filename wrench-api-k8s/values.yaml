@@ -1,9 +1,5 @@
-# Namespace onde todos os recursos do chart serão criados
 namespace: production
 
-# ----------------------------------------------------------------------------
-# API
-# ----------------------------------------------------------------------------
 api:
   image:
     repository: 388465176512.dkr.ecr.us-east-1.amazonaws.com/wrench/api
@@ -21,31 +17,13 @@ api:
     maxReplicas: 6
     targetCPUUtilizationPercentage: 50
 
-# ----------------------------------------------------------------------------
-# Roteamento (Gateway API / AWS Load Balancer Controller)
-# ----------------------------------------------------------------------------
 gateway:
   name: bgt3-gw
-  className: aws-lb-alb
-  # internet-facing = ALB público. O default do LBC é "internal" (só dentro da VPC).
-  scheme: internet-facing
-  # ARN do certificado ACM para o listener HTTPS (443). Vazio = só HTTP.
-  # No CI: --set gateway.certificateArn=$(terraform -chdir=terraform/infra output -raw acm_certificate_arn)
-  certificateArn: ''
+  namespace: gateway
 
 httpRoute:
   hostname: api.bgt3.com.br
 
-# ----------------------------------------------------------------------------
-# Banco de dados
-# ----------------------------------------------------------------------------
-# O banco e o RDS gerenciado provisionado pelo repositorio infra-db, alcancado
-# pelo CNAME prod-db.<root_domain>. Nao existe Postgres in-cluster.
-#
-# user/password sao os do ROLE DA APLICACAO (menor privilegio, criado no stack
-# terraform/roles do infra-db), nunca o usuario master. Os valores abaixo servem
-# apenas para `helm template`/desenvolvimento local: o pipeline sobrescreve os
-# quatro campos via `--set`.
 database:
   host: prod-db.bgt3.com.br
   port: 5432
@@ -53,16 +31,6 @@ database:
   password: trocar-no-deploy
   name: wrench_auto_repair
 
-# ----------------------------------------------------------------------------
-# JWT
-# ----------------------------------------------------------------------------
-# issuer e audience NAO sao segredo, mas precisam ser identicos aos da Lambda de
-# autenticacao (repositorio lambda-auth) — e o contrato entre as duas: a API so
-# aceita token emitido com os mesmos tres valores.
-#
-# signingKey e segredo e NAO e versionada: o pipeline injeta via
-# `--set jwt.signingKey=...` a partir do secret JWT_SIGNING_KEY, e o template
-# falha se ela vier vazia. A aplicacao tambem recusa subir sem ela.
 jwt:
   issuer: Wrench Auto Repair
   audience: Wrench Auto Repair
@@ -71,30 +39,20 @@ jwt:
 
 application:
   environment: Production
-  # Credenciais do usuario administrador semeado na primeira subida. A senha NAO
-  # e versionada: o pipeline injeta via `--set application.admin.password=...` a
-  # partir do secret ADMIN_PASSWORD, e o template falha se ela vier vazia.
   admin:
     email: admin@wrench.com.br
     password: ''
   no_reply:
     email: ''
-  # Regiao usada pelo AWS SDK da aplicacao (envio de e-mail via SES). As
-  # credenciais em si vem da role IRSA em serviceAccount.roleArn, nao daqui.
   credentials:
     aws:
       region: us-east-1
+
 serviceAccount:
   create: true
   name: wrench-api-sa
   roleArn: ''
 
-# ----------------------------------------------------------------------------
-# Observabilidade (New Relic via OTLP)
-# ----------------------------------------------------------------------------
-# licenseKey vazio: a aplicacao sobe normalmente e o New Relic apenas recusa a
-# exportacao. O pipeline injeta via `--set newRelic.licenseKey=...` a partir do
-# secret NEW_RELIC_LICENSE_KEY. Nunca versionar o valor real aqui.
 newRelic:
   otlpEndpoint: https://otlp.nr-data.net:4318
   otlpProtocol: http/protobuf
