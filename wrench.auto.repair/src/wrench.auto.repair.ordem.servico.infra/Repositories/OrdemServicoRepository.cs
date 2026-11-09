@@ -57,7 +57,9 @@ namespace wrench.auto.repair.ordem.servico.infra.Repositories
             CancellationToken cancellationToken)
         {
             var query = _context.Set<OrdemServico>().AsQueryable()
-                .Where(os => os.Status != OrdemServicoStatus.Finalizada && os.Status != OrdemServicoStatus.Entregue);
+                .Where(os => os.Status != OrdemServicoStatus.Finalizada
+                    && os.Status != OrdemServicoStatus.Entregue
+                    && os.Status != OrdemServicoStatus.Cancelada);
 
             ValidarOrdenacao(request, sortMap);
 

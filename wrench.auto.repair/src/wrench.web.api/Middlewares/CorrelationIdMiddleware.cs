@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Serilog.Context;
+using wrench.auto.repair.core.Services;
 
 namespace wrench.web.api.Middlewares
 {
@@ -33,9 +34,18 @@ namespace wrench.web.api.Middlewares
 
             Activity.Current?.SetTag("correlation_id", correlationId);
 
-            using (LogContext.PushProperty("CorrelationId", correlationId))
+            CorrelationContext.Current = correlationId;
+
+            try
             {
-                await _next(context);
+                using (LogContext.PushProperty("CorrelationId", correlationId))
+                {
+                    await _next(context);
+                }
+            }
+            finally
+            {
+                CorrelationContext.Current = null;
             }
         }
 

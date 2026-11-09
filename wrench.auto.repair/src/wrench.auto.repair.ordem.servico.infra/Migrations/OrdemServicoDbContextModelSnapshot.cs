@@ -114,6 +114,44 @@ namespace wrench.auto.repair.ordem.servico.infra.Migrations
                                 .HasForeignKey("OrdemServicoId");
                         });
 
+                    b.OwnsMany("wrench.auto.repair.ordem.servico.domain.ValueObjects.OrdemServicoHistorico", "Historico", b1 =>
+                        {
+                            b1.Property<Guid>("OrdemServicoId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<string>("CorrelationId")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("Motivo")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)");
+
+                            b1.Property<DateTime>("OcorridoEm")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<int?>("StatusAnterior")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("StatusNovo")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("OrdemServicoId", "Id");
+
+                            b1.ToTable("OrdemServicoHistorico", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrdemServicoId");
+                        });
+
+                    b.Navigation("Historico");
+
                     b.Navigation("Pecas");
                 });
 #pragma warning restore 612, 618

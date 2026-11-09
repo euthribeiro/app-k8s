@@ -19,6 +19,10 @@ namespace wrench.auto.repair.ordem.servico.application.AutoMapper
                 .ForMember(o => o.TempoExecucaoOrdem, opt => opt.MapFrom(src => src.CalculaTempoExecucaoOrdem()));
 
             CreateMap<ItemOrdemServico, ItemOrdemServicoViewModel>();
+
+            CreateMap<OrdemServicoHistorico, OrdemServicoHistoricoViewModel>()
+                .ForMember(h => h.StatusAnterior, opt => opt.MapFrom(src => src.StatusAnterior.HasValue ? src.StatusAnterior.GetAttribute<DescriptionAttribute>().Description : null))
+                .ForMember(h => h.StatusNovo, opt => opt.MapFrom(src => src.StatusNovo.GetAttribute<DescriptionAttribute>().Description));
         }
     }
 }

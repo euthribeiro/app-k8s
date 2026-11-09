@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using wrench.auto.repair.core.Services;
 using wrench.web.api.Middlewares;
 
 namespace wrench.web.api.tests
@@ -58,6 +59,31 @@ namespace wrench.web.api.tests
             Assert.Equal($"\"{correlationId}\"", logged.Properties["CorrelationId"].ToString());
 
             Log.CloseAndFlush();
+        }
+
+        [Fact]
+        public async Task Request_PublishesCorrelationIdToDomainContext()
+        {
+            string? seenInsidePipeline = null;
+
+            var builder = new WebHostBuilder()
+                .Configure(app =>
+                {
+                    app.UseCorrelationId();
+                    app.Run(context =>
+                    {
+                        seenInsidePipeline = CorrelationContext.Current;
+                        return context.Response.WriteAsync("ok");
+                    });
+                });
+
+            using var server = new TestServer(builder);
+            using var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add(CorrelationIdMiddleware.HeaderName, "corr-dominio");
+
+            await client.GetAsync("/");
+
+            Assert.Equal("corr-dominio", seenInsidePipeline);
         }
 
         [Fact]

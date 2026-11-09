@@ -20,6 +20,9 @@ namespace wrench.auto.repair.ordem.servico.domain.Enums
         Finalizada = 5,
 
         [Description("Entregue")]
-        Entregue = 6
+        Entregue = 6,
+
+        [Description("Cancelada")]
+        Cancelada = 7
     }
 }

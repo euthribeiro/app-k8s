@@ -23,6 +23,21 @@ namespace wrench.auto.repair.ordem.servico.infra.Mapping
             builder.Navigation(x => x.Pecas)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+            builder.OwnsMany(x => x.Historico, h =>
+            {
+                h.ToTable("OrdemServicoHistorico");
+
+                h.WithOwner().HasForeignKey("OrdemServicoId");
+
+                h.Property(x => x.StatusNovo).IsRequired();
+                h.Property(x => x.Motivo).HasMaxLength(500);
+                h.Property(x => x.CorrelationId).HasMaxLength(100);
+                h.Property(x => x.OcorridoEm).IsRequired();
+            });
+
+            builder.Navigation(x => x.Historico)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
             builder.HasIndex(x => x.ClienteId);
 
             builder.HasIndex(x => new { x.Status, x.DataCriacao });
