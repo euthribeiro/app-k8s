@@ -3,39 +3,31 @@ name: .NET Core CI
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
+  # O build, os testes, o gate de cobertura e a análise do SonarCloud vivem no workflow
+  # reutilizável do infra-k8s, compartilhado pelos três microsserviços da Fase 4.
   build-and-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar .NET SDK
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restaurar dependências
-        run: dotnet restore wrench.auto.repair/wrench.auto.repair.sln
-
-      - name: Auditar dependências vulneráveis
-        run: |
-          RELATORIO=$(dotnet list wrench.auto.repair/wrench.auto.repair.sln package \
-            --vulnerable --include-transitive)
-          echo "$RELATORIO"
-          if echo "$RELATORIO" | grep -qE '^\s+>'; then
-            echo "::error::Dependências com vulnerabilidade conhecida encontradas."
-            exit 1
-          fi
-
-      - name: Build da aplicação
-        run: dotnet build wrench.auto.repair/wrench.auto.repair.sln --configuration Release --no-restore
-
-      - name: Executar testes unitários
-        env:
-          ASPNETCORE_ENVIRONMENT: 'Development'
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_SES }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_SES }}
-          AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
-        run: dotnet test wrench.auto.repair/wrench.auto.repair.sln --configuration Release --no-build --verbosity normal
+    uses: euthribeiro/infra-k8s/.github/workflows/dotnet-service-ci.yml@master
+    secrets: inherit
+    with:
+      solution: wrench.auto.repair/wrench.auto.repair.sln
+      cobertura_minima: 80
+      cobertura_assembly_filtros: '+wrench.auto.repair.*;+wrench.web.api;-*.tests;-*.test'
+      cobertura_classe_filtros: '-*.Migrations.*;-Program;-*.Program;-Wrench.Contracts.*;-Microsoft.AspNetCore.OpenApi.Generated;-System.Runtime.CompilerServices*'
+      sonar_project_key: euthribeiro_app-k8s
+      sonar_organization: euthribeiro
+      sonar_exclusions: '**/Migrations/**,**/obj/**,**/bin/**,**/Program.cs'
+      helm_chart: ./wrench-api-k8s
+      helm_lint_args: >-
+        --set api.image.repository=exemplo
+        --set api.image.tag=0.0.0
+        --set httpRoute.hostname=exemplo.bgt3.com.br
+        --set database.host=exemplo
+        --set database.name=exemplo
+        --set database.user=exemplo
+        --set database.password=exemplo
+        --set application.admin.password=exemplo
+        --set jwt.signingKey=exemplo

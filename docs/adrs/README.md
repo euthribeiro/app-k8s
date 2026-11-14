@@ -11,5 +11,6 @@ decisão, as alternativas descartadas e as consequências — inclusive as negat
 | [004](./ADR%20004%20-%20Uso%20de%20HPA.md) | Uso de HPA e segregação de ambientes | Aceito | 3 |
 | [005](./ADR%20005%20-%20Padrao%20de%20Comunicacao.md) | Padrão de comunicação entre componentes | Aceito | 3 |
 | [006](./ADR%20006%20-%20Lambda%20Authorizer.md) | Lambda Authorizer no API Gateway | Aceito | 3 |
+| [007](./ADR%20007%20-%20Saga%20Orquestrada.md) | Saga orquestrada com outbox transacional sobre SNS e SQS | Aceito | 4 |
 
 Decisões técnicas discutidas antes da implementação ficam em [`../rfcs`](../rfcs).

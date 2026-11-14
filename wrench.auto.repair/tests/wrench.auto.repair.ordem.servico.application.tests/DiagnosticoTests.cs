@@ -8,6 +8,7 @@ using wrench.auto.repair.ordem.servico.application.UseCases.DiagnosticoUseCase;
 using wrench.auto.repair.ordem.servico.domain.Data;
 using wrench.auto.repair.ordem.servico.domain.Entities;
 using wrench.auto.repair.ordem.servico.domain.Enums;
+using wrench.auto.repair.ordem.servico.domain.Saga;
 
 namespace wrench.auto.repair.ordem.servico.application.tests
 {
@@ -15,6 +16,7 @@ namespace wrench.auto.repair.ordem.servico.application.tests
     {
         private readonly Mock<IOrdemServicoRepository> _ordemServicoRepositoryMock;
         private readonly Mock<IMediatorHandler> _mediatorHandlerMock;
+        private readonly Mock<ISagaOrquestrador> _sagaOrquestradorMock;
         private readonly DiagnosticoCommandHandler _handler;
 
         public DiagnosticoTests()
@@ -24,7 +26,11 @@ namespace wrench.auto.repair.ordem.servico.application.tests
             _mediatorHandlerMock
                 .Setup(m => m.PublicarEvento(It.IsAny<OrdemServicoAguardandoAprovacaoEvent>()))
                 .Returns(Task.CompletedTask);
-            _handler = new DiagnosticoCommandHandler(_mediatorHandlerMock.Object, _ordemServicoRepositoryMock.Object);
+            _sagaOrquestradorMock = new Mock<ISagaOrquestrador>();
+            _handler = new DiagnosticoCommandHandler(
+                _mediatorHandlerMock.Object,
+                _ordemServicoRepositoryMock.Object,
+                _sagaOrquestradorMock.Object);
         }
 
         [Fact(DisplayName = "Realizar diagnóstico command deve ser inválido para dados incorretos")]

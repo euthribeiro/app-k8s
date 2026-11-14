@@ -27,6 +27,11 @@ variable "ecr_workspace" {
   type        = string
 }
 
+variable "mensageria_workspace" {
+  description = "Workspace do stack mensageria/ do repositório infra-k8s (SNS, SQS e role IRSA da Saga)."
+  type        = string
+}
+
 data "terraform_remote_state" "infra" {
   backend = "remote"
 
@@ -71,6 +76,17 @@ data "terraform_remote_state" "ecr" {
   }
 }
 
+data "terraform_remote_state" "mensageria" {
+  backend = "remote"
+
+  config = {
+    organization = var.tfc_organization
+    workspaces = {
+      name = var.mensageria_workspace
+    }
+  }
+}
+
 output "cluster_name" {
   value = data.terraform_remote_state.infra.outputs.cluster_name
 }
@@ -97,4 +113,18 @@ output "chart_repository" {
 
 output "chart_repository_url" {
   value = data.terraform_remote_state.ecr.outputs.chart_repository_url
+}
+
+# A ServiceAccount da API aponta para uma unica role IRSA: a do stack mensageria/, que
+# acumula SNS, SQS e o ses:SendEmail que antes vinha da role do stack email/.
+output "saga_role_arn" {
+  value = data.terraform_remote_state.mensageria.outputs.os_role_arn
+}
+
+output "saga_topic_arn" {
+  value = data.terraform_remote_state.mensageria.outputs.os_topic_arn
+}
+
+output "saga_queue_url" {
+  value = data.terraform_remote_state.mensageria.outputs.os_queue_url
 }

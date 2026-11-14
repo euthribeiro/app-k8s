@@ -64,6 +64,7 @@ builder.Services
     .AddEstoqueInfra()
     .AddOrdemServicoApplication()
     .AddOrdemServicoInfra()
+    .AddSagaMensageria(builder.Configuration)
     .AddWrenchInfra(builder.Configuration);
 
 builder.Services.ConfigureOpenApi();
