@@ -56,8 +56,11 @@ O transporte é **SNS para publicar** e **SQS para consumir**, provisionado em T
 
 * Um **tópico por publicador**: `wrench-os-events`, `wrench-billing-events`, `wrench-execucao-events`.
   Ninguém publica no tópico de outro.
-* Uma **fila com DLQ por consumidor**: `wrench-billing-commands`, `wrench-execucao-commands`,
-  `wrench-os-saga`. Ninguém lê a fila de outro.
+* Uma **fila com DLQ por consumidor**: `wrench-billing-gerar-orcamento`,
+  `wrench-billing-cancelar-orcamento`, `wrench-billing-estornar-pagamento`,
+  `wrench-execucao-commands` e `wrench-os-saga`. Ninguém lê a fila de outro. O Billing tem uma fila
+  por comando porque consome com MassTransit: sem o envelope do próprio MassTransit, descartado pelo
+  `raw_message_delivery`, o tipo da mensagem só pode ser inferido pela fila em que ela chegou.
 * A assinatura usa `raw_message_delivery` e um **filter policy sobre o atributo `tipo`**, de modo
   que cada consumidor só recebe o que sabe tratar.
 * Esgotadas as entregas (`maxReceiveCount = 5`), a mensagem vai para a DLQ e o alerta
