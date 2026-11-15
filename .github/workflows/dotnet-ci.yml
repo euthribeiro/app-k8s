@@ -19,7 +19,7 @@ jobs:
       cobertura_classe_filtros: '-*.Migrations.*;-Program;-*.Program;-Wrench.Contracts.*;-Microsoft.AspNetCore.OpenApi.Generated;-System.Runtime.CompilerServices*'
       sonar_project_key: euthribeiro_app-k8s
       sonar_organization: euthribeiro
-      sonar_exclusions: '**/Migrations/**,**/obj/**,**/bin/**,**/Program.cs'
+      sonar_exclusions: '**/Migrations/**,**/obj/**,**/bin/**,**/Program.cs,.github/**'
       helm_chart: ./wrench-api-k8s
       helm_lint_args: >-
         --set api.image.repository=exemplo
