@@ -81,11 +81,21 @@ flowchart TB
 | `autenticacao` | Usuários, perfis, política de senha e login por e-mail e senha |
 | `cadastro` | Clientes, veículos e endereços |
 | `estoque` | Peças, saldo e reposição |
-| `ordem.servico` | Ordem de serviço, diagnóstico, orçamento, execução e métricas por fase |
+| `ordem.servico` | Ordem de serviço, diagnóstico, orçamento, execução, métricas por fase e **orquestrador da Saga** |
 
 Cada contexto se divide em `domain`, `application` e `infra`; `wrench.auto.repair.core` concentra
 os objetos compartilhados (value objects, `Result`, mediator, validações) e `wrench.web.api` é o
 host HTTP, com autenticação JWT, telemetria e healthchecks.
+
+### Saga da ordem de serviço
+
+Na Fase 4 este serviço passa a **orquestrar a Saga** que atravessa o Billing Service e o Execução
+Service: emite os comandos, acompanha o estado de cada etapa e aciona as compensações quando uma
+delas falha ou estoura o prazo. O transporte é Amazon SNS e SQS com DLQ, com outbox e inbox
+transacionais no mesmo banco da ordem de serviço.
+
+O fluxo, os eventos, as compensações e a configuração estão em [`docs/saga.md`](./docs/saga.md); a
+justificativa da escolha, no [ADR 007](./docs/adrs/ADR%20007%20-%20Saga%20Orquestrada.md).
 
 ## Tecnologias
 
@@ -250,6 +260,8 @@ Os ambientes `production` e `homologacao` devem existir em **Settings → Enviro
 | Logs estruturados | Serilog em JSON no stdout e via OTLP, com `CorrelationId` (`X-Correlation-ID`), `TraceId` e `SpanId` |
 | Traces | OpenTelemetry para ASP.NET Core, HttpClient e EF Core; `/health` fora do tracing |
 | Métricas de negócio | `ordemservico.diagnostico.duration`, `ordemservico.execucao.duration`, `ordemservico.entrega.duration` e `ordemservico.processamento.falhas` |
+| Métricas da Saga | `saga.iniciada`, `saga.concluida`, `saga.compensacao`, `saga.timeout`, `saga.mensagem.*`, `saga.outbox.pendentes` e `saga.duracao` |
+| Trace distribuído | O `traceparent` viaja como message attribute no SNS/SQS e liga a abertura da OS ao estorno no Mercado Pago |
 | Métricas de runtime | OpenTelemetry Runtime e ASP.NET Core |
 | Destino | New Relic via OTLP (`otlp.nr-data.net`), com a license key do secret `newrelic-credentials` |
 
@@ -276,7 +288,8 @@ Ordem dos middlewares e restrições do pipeline HTTP em
 | [Sequência — autenticação](./docs/diagramas/sequencia-autenticacao.md) | Autenticação por CPF e consumo de rota protegida |
 | [Sequência — abertura de ordem de serviço](./docs/diagramas/sequencia-abertura-ordem-servico.md) | Da borda autenticada à notificação por e-mail |
 | [Modelo relacional](./docs/database/modelo-relacional.md) | Justificativa do banco, diagrama ER e relacionamentos |
-| [ADRs](./docs/adrs) | 001–002 banco, 003 observabilidade, 004 HPA, 005 comunicação, 006 Lambda authorizer |
+| [Saga da ordem de serviço](./docs/saga.md) | Fluxo distribuído, compensações, eventos, configuração e observabilidade |
+| [ADRs](./docs/adrs) | 001–002 banco, 003 observabilidade, 004 HPA, 005 comunicação, 006 Lambda authorizer, 007 Saga |
 | [RFCs](./docs/rfcs) | 001 nuvem, 002 autenticação, 003 banco de dados |
 | [Dashboards NRQL](./docs/observability/dashboards-nrql.md) | Queries dos painéis de observabilidade |
 | [CI/CD](./docs/infraestrutura/ci-cd.md) | Workflows, ambientes e ordem de provisionamento |

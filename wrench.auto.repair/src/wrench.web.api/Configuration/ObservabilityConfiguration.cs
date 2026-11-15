@@ -3,6 +3,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using wrench.auto.repair.ordem.servico.application.Metrics;
+using wrench.auto.repair.ordem.servico.domain.Saga;
 
 namespace wrench.web.api.Configuration
 {
@@ -42,12 +43,14 @@ namespace wrench.web.api.Configuration
                     })
                     .AddHttpClientInstrumentation()
                     .AddEntityFrameworkCoreInstrumentation()
+                    .AddSource(SagaMetrics.ActivitySourceName)
                     .AddOtlpExporter())
                 .WithMetrics(metrics => metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
                     .AddMeter(OrdemServicoMetrics.MeterName)
+                    .AddMeter(SagaMetrics.MeterName)
                     .AddOtlpExporter((_, metricReaderOptions) =>
                         metricReaderOptions.TemporalityPreference = MetricReaderTemporalityPreference.Delta));
 

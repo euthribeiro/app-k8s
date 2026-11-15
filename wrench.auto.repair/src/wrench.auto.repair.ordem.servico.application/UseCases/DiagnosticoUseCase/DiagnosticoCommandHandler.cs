@@ -3,7 +3,9 @@ using wrench.auto.repair.core.Errors;
 using wrench.auto.repair.core.Mediator;
 using wrench.auto.repair.core.Messages.CommonMessages.IntegratedQueries;
 using wrench.auto.repair.core.Messages.CommonMessages.IntegratedQueries.Dtos;
+using wrench.auto.repair.core.Services;
 using wrench.auto.repair.ordem.servico.application.Events;
+using wrench.auto.repair.ordem.servico.domain.Saga;
 using wrench.auto.repair.ordem.servico.domain.Data;
 using wrench.auto.repair.ordem.servico.domain.Enums;
 using wrench.auto.repair.ordem.servico.domain.ValueObjects;
@@ -12,7 +14,8 @@ namespace wrench.auto.repair.ordem.servico.application.UseCases.DiagnosticoUseCa
 {
     public class DiagnosticoCommandHandler(
         IMediatorHandler _mediatorHandler,
-        IOrdemServicoRepository _ordemServicoRepository
+        IOrdemServicoRepository _ordemServicoRepository,
+        ISagaOrquestrador _sagaOrquestrador
     ) : IRequestHandler<SolicitarDiagnosticoCommand, Result>,
         IRequestHandler<RealizarDiagnosticoCommand, Result<Guid>>
     {
@@ -73,6 +76,12 @@ namespace wrench.auto.repair.ordem.servico.application.UseCases.DiagnosticoUseCa
             }
 
             await _ordemServicoRepository.Atualizar(ordemServico);
+
+            // A Saga nasce aqui: o estado inicial e o comando GerarOrcamento entram no mesmo
+            // CommitAsync da mudanca da ordem de servico, pelo outbox transacional.
+            var correlationId = CorrelationContext.Current ?? ordemServico.Id.ToString();
+
+            await _sagaOrquestrador.IniciarAsync(ordemServico, correlationId, cancellationToken);
 
             var salvo = await _ordemServicoRepository.UnitOfWork.CommitAsync();
 

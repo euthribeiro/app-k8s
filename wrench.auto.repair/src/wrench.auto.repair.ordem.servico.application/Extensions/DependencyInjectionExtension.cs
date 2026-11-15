@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using wrench.auto.repair.core.Data;
 using wrench.auto.repair.ordem.servico.application.Metrics;
+using wrench.auto.repair.ordem.servico.application.Saga;
 using wrench.auto.repair.ordem.servico.application.SortMaps;
 using wrench.auto.repair.ordem.servico.domain.Entities;
+using wrench.auto.repair.ordem.servico.domain.Saga;
 
 namespace wrench.auto.repair.ordem.servico.application.Extensions
 {
@@ -14,6 +16,7 @@ namespace wrench.auto.repair.ordem.servico.application.Extensions
             services.ConfigureAutoMapper();
             services.ConfigureSortMaps();
             services.AddHostedService<OrdemServicoMetrics>();
+            services.AddScoped<ISagaOrquestrador, SagaOrquestrador>();
 
             return services;
         }
