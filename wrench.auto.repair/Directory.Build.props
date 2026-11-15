@@ -1,0 +1,14 @@
+<Project>
+
+  <!--
+    Pinagem de seguranca: versoes transitivas de System.Security.Cryptography.* trazidas pelas
+    bibliotecas de JWT e de OpenAPI ficavam em releases com vulnerabilidade conhecida
+    (GHSA-846f-f764-76mx e GHSA-r955-8q5j-3h83). A referencia direta promove a versao corrigida
+    em todos os projetos e mantem verde a auditoria de dependencias do pipeline.
+  -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="11.0.0" />
+  </ItemGroup>
+
+</Project>

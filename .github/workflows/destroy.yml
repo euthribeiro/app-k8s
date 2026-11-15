@@ -61,7 +61,8 @@ jobs:
             -var="infra_workspace=${{ vars.TFC_WORKSPACE_INFRA }}" \
             -var="rds_workspace=${{ vars.TFC_WORKSPACE_RDS }}" \
             -var="email_workspace=${{ vars.TFC_WORKSPACE_EMAIL }}" \
-            -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}"; then
+            -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}" \
+            -var="mensageria_workspace=${{ vars.TFC_WORKSPACE_MENSAGERIA }}"; then
             echo "cluster_name=$(terraform -chdir="$OUTPUTS_DIR" output -raw cluster_name)" >> "$GITHUB_OUTPUT"
             echo "existe=true" >> "$GITHUB_OUTPUT"
           else

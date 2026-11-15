@@ -117,6 +117,20 @@ namespace wrench.web.api.Controllers
         }
 
         /// <summary>
+        /// Consultar o histórico de transições de status da ordem de serviço
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("{id:guid}/historico")]
+        public async Task<IActionResult> GetHistorico([FromRoute] Guid id)
+        {
+            var result = await _mediatorHandler
+                .EnviarComando<ObterHistoricoOrdemServicoQuery, List<OrdemServicoHistoricoViewModel>>(new ObterHistoricoOrdemServicoQuery(id));
+
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Listar todas as ordem de serviço
         /// </summary>
         /// <param name="requisicao"></param>

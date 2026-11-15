@@ -16,7 +16,8 @@ namespace wrench.auto.repair.ordem.servico.application.Queries
     ) : IRequestHandler<ObterOrdemServicoIdQuery, Result<OrdemServicoViewModel>>,
         IRequestHandler<ObterTodasOrdemServicoQuery, Result<ResultadoPaginado<OrdemServicoViewModel>>>,
         IRequestHandler<ObterTodasOrdemServicoPorClienteQuery, Result<ResultadoPaginado<OrdemServicoViewModel>>>,
-        IRequestHandler<ObterTempoMedioExecucaoOrdemServicoQuery, Result<MonitoramentoViewModel>>
+        IRequestHandler<ObterTempoMedioExecucaoOrdemServicoQuery, Result<MonitoramentoViewModel>>,
+        IRequestHandler<ObterHistoricoOrdemServicoQuery, Result<List<OrdemServicoHistoricoViewModel>>>
     {
         public async Task<Result<OrdemServicoViewModel>> Handle(ObterOrdemServicoIdQuery request, CancellationToken cancellationToken)
         {
@@ -31,6 +32,25 @@ namespace wrench.auto.repair.ordem.servico.application.Queries
             var ordemServicoViewModel = _mapper.Map<OrdemServicoViewModel>(ordemServico);
 
             return Result<OrdemServicoViewModel>.Ok(ordemServicoViewModel);
+        }
+
+        public async Task<Result<List<OrdemServicoHistoricoViewModel>>> Handle(ObterHistoricoOrdemServicoQuery request, CancellationToken cancellationToken)
+        {
+            if (!request.EhValido())
+                return Result<List<OrdemServicoHistoricoViewModel>>.ValidationError(request.ObterErros());
+
+            var ordemServico = await _ordemServicoRepository.ObterPorIdAsync(request.Id, cancellationToken);
+
+            if (ordemServico == null)
+                return Result<List<OrdemServicoHistoricoViewModel>>.NotFound("Ordem de serviço não encontrada");
+
+            var historico = ordemServico.Historico
+                .OrderBy(h => h.OcorridoEm)
+                .ToList();
+
+            var viewModels = _mapper.Map<List<OrdemServicoHistoricoViewModel>>(historico);
+
+            return Result<List<OrdemServicoHistoricoViewModel>>.Ok(viewModels);
         }
 
         public async Task<Result<ResultadoPaginado<OrdemServicoViewModel>>> Handle(ObterTodasOrdemServicoQuery request, CancellationToken cancellationToken)

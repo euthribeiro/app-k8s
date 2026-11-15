@@ -4,7 +4,7 @@
     <DataCollectors>
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
-          <Format>cobertura</Format>
+          <Format>cobertura,opencover</Format>
           <Include>[wrench.auto.repair.estoque.application]*</Include>
           <ExcludeByFile>**/RegexGenerator.g.cs</ExcludeByFile>
         </Configuration>

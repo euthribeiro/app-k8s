@@ -56,9 +56,11 @@ jobs:
             -var="infra_workspace=${{ vars.TFC_WORKSPACE_INFRA }}" \
             -var="rds_workspace=${{ vars.TFC_WORKSPACE_RDS }}" \
             -var="email_workspace=${{ vars.TFC_WORKSPACE_EMAIL }}" \
-            -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}"
+            -var="ecr_workspace=${{ vars.TFC_WORKSPACE_ECR }}" \
+            -var="mensageria_workspace=${{ vars.TFC_WORKSPACE_MENSAGERIA }}"
           for saida in cluster_name database_hostname database_name \
-                       app_ses_irsa_role_arn api_repository chart_repository chart_repository_url; do
+                       app_ses_irsa_role_arn api_repository chart_repository chart_repository_url \
+                       saga_role_arn saga_topic_arn saga_queue_url; do
             echo "$saida=$(terraform -chdir="$OUTPUTS_DIR" output -raw "$saida")" >> "$GITHUB_OUTPUT"
           done
 
@@ -117,7 +119,9 @@ jobs:
           JWT_AUDIENCE: ${{ vars.JWT_AUDIENCE }}
           JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
           NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
-          SES_ROLE_ARN: ${{ steps.infra.outputs.app_ses_irsa_role_arn }}
+          SAGA_ROLE_ARN: ${{ steps.infra.outputs.saga_role_arn }}
+          SAGA_TOPIC_ARN: ${{ steps.infra.outputs.saga_topic_arn }}
+          SAGA_QUEUE_URL: ${{ steps.infra.outputs.saga_queue_url }}
           ENVIRONMENT: ${{ inputs.environment }}
           HOSTNAME: ${{ inputs.hostname }}
           RELEASE: ${{ inputs.release_name }}
@@ -144,7 +148,9 @@ jobs:
             --set jwt.audience="$JWT_AUDIENCE" \
             --set jwt.signingKey="$JWT_SIGNING_KEY" \
             --set application.credentials.aws.region="$REGION" \
-            --set serviceAccount.roleArn="$SES_ROLE_ARN" \
+            --set serviceAccount.roleArn="$SAGA_ROLE_ARN" \
+            --set saga.snsTopicArn="$SAGA_TOPIC_ARN" \
+            --set saga.sqsQueueUrl="$SAGA_QUEUE_URL" \
             --set newRelic.licenseKey="$NEW_RELIC_LICENSE_KEY"
 
       - name: Aguardar rollout e rota

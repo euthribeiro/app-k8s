@@ -80,6 +80,127 @@ namespace wrench.auto.repair.ordem.servico.infra.Migrations
                     b.ToTable("OrdemServico");
                 });
 
+            modelBuilder.Entity("wrench.auto.repair.ordem.servico.domain.Saga.SagaOrdemServico", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("DataAtualizacao")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DataCriacao")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DataDesfecho")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Etapa")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MotivoDesfecho")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("OrcamentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrdemServicoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PagamentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PrazoEtapa")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("ValorAprovado")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrdemServicoId")
+                        .IsUnique();
+
+                    b.HasIndex("Estado", "PrazoEtapa");
+
+                    b.ToTable("SagaOrdemServico", (string)null);
+                });
+
+            modelBuilder.Entity("wrench.auto.repair.ordem.servico.infra.Saga.InboxMensagem", b =>
+                {
+                    b.Property<string>("MessageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("RecebidaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("MessageId");
+
+                    b.ToTable("SagaInbox", (string)null);
+                });
+
+            modelBuilder.Entity("wrench.auto.repair.ordem.servico.infra.Saga.OutboxMensagem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CriadaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrdemServicoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PublicadaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Tentativas")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Traceparent")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UltimoErro")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicadaEm", "CriadaEm");
+
+                    b.ToTable("SagaOutbox", (string)null);
+                });
+
             modelBuilder.Entity("wrench.auto.repair.ordem.servico.domain.Entities.OrdemServico", b =>
                 {
                     b.OwnsMany("wrench.auto.repair.ordem.servico.domain.ValueObjects.ItemOrdemServico", "Pecas", b1 =>
@@ -114,7 +235,90 @@ namespace wrench.auto.repair.ordem.servico.infra.Migrations
                                 .HasForeignKey("OrdemServicoId");
                         });
 
+                    b.OwnsMany("wrench.auto.repair.ordem.servico.domain.ValueObjects.OrdemServicoHistorico", "Historico", b1 =>
+                        {
+                            b1.Property<Guid>("OrdemServicoId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<string>("CorrelationId")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("Motivo")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)");
+
+                            b1.Property<DateTime>("OcorridoEm")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<int?>("StatusAnterior")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("StatusNovo")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("OrdemServicoId", "Id");
+
+                            b1.ToTable("OrdemServicoHistorico", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrdemServicoId");
+                        });
+
+                    b.Navigation("Historico");
+
                     b.Navigation("Pecas");
+                });
+
+            modelBuilder.Entity("wrench.auto.repair.ordem.servico.domain.Saga.SagaOrdemServico", b =>
+                {
+                    b.OwnsMany("wrench.auto.repair.ordem.servico.domain.Saga.SagaTransicao", "Transicoes", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uuid");
+
+                            b1.Property<int?>("EstadoAnterior")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("EstadoNovo")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Etapa")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("Gatilho")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("Motivo")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)");
+
+                            b1.Property<DateTime>("OcorridaEm")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<Guid>("SagaOrdemServicoId")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("SagaOrdemServicoId");
+
+                            b1.ToTable("SagaTransicao", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("SagaOrdemServicoId");
+                        });
+
+                    b.Navigation("Transicoes");
                 });
 #pragma warning restore 612, 618
         }

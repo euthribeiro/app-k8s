@@ -1,7 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using wrench.auto.repair.core.Data;
 using wrench.auto.repair.ordem.servico.domain.Entities;
+using wrench.auto.repair.ordem.servico.domain.Saga;
 using wrench.auto.repair.ordem.servico.infra.Extensions;
+using wrench.auto.repair.ordem.servico.infra.Saga;
 
 namespace wrench.auto.repair.ordem.servico.infra.Context
 {
@@ -17,6 +19,12 @@ namespace wrench.auto.repair.ordem.servico.infra.Context
     public class OrdemServicoDbContext(DbContextOptions<OrdemServicoDbContext> options) : DbContext(options), IUnitOfWork
     {
         public DbSet<OrdemServico> OrdemServico { get; set; }
+
+        public DbSet<SagaOrdemServico> SagaOrdemServico { get; set; }
+
+        public DbSet<OutboxMensagem> SagaOutbox { get; set; }
+
+        public DbSet<InboxMensagem> SagaInbox { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -2,6 +2,7 @@ name: Wrench API
 
 permissions:
   contents: write
+  packages: read
 
 on:
   push:

@@ -16,7 +16,9 @@ namespace wrench.auto.repair.ordem.servico.application.UseCases.OrdemServicoUseC
         IEmailService emailService
     ) : IRequestHandler<CriarOrdemServicoCommand, Result<Guid>>,
         IRequestHandler<FinalizarOrdemServicoCommand, Result>,
-        IRequestHandler<EntregarServicoCommand, Result>
+        IRequestHandler<EntregarServicoCommand, Result>,
+        IRequestHandler<CancelarOrdemServicoCommand, Result>,
+        IRequestHandler<RetornarParaDiagnosticoCommand, Result>
     {
         private readonly IOrdemServicoRepository _ordemServicoRepository = repository;
         private readonly IEmailService _emailService = emailService;
@@ -97,6 +99,55 @@ namespace wrench.auto.repair.ordem.servico.application.UseCases.OrdemServicoUseC
 
             var evento = new OrdemServicoAtualizadaEvent(ordemServico.Id, ordemServico.ClienteId, ordemServico.Status);
             await _mediatorHandler.PublicarEvento(evento);
+
+            return Result.Ok();
+        }
+
+        public async Task<Result> Handle(CancelarOrdemServicoCommand request, CancellationToken cancellationToken)
+        {
+            if (!request.EhValido())
+                return Result.ValidationError(request.ObterErros());
+
+            var ordemServico = await _ordemServicoRepository.ObterPorIdAsync(request.OrdemServicoId, cancellationToken);
+
+            if (ordemServico == null)
+                return Result.NotFound("Ordem de serviço não encontrada");
+
+            if (!ordemServico.PodeSerCancelada())
+                return Result.Conflicted("Status da ordem de serviço não permite cancelamento");
+
+            ordemServico.Cancelar(request.Motivo);
+
+            await _ordemServicoRepository.Atualizar(ordemServico);
+            var salvo = await _ordemServicoRepository.UnitOfWork.CommitAsync();
+
+            if (!salvo) return Result.Unexpected("Não foi possível cancelar a ordem de serviço. Por favor tente novamente.");
+
+            var evento = new OrdemServicoAtualizadaEvent(ordemServico.Id, ordemServico.ClienteId, ordemServico.Status);
+            await _mediatorHandler.PublicarEvento(evento);
+
+            return Result.Ok();
+        }
+
+        public async Task<Result> Handle(RetornarParaDiagnosticoCommand request, CancellationToken cancellationToken)
+        {
+            if (!request.EhValido())
+                return Result.ValidationError(request.ObterErros());
+
+            var ordemServico = await _ordemServicoRepository.ObterPorIdAsync(request.OrdemServicoId, cancellationToken);
+
+            if (ordemServico == null)
+                return Result.NotFound("Ordem de serviço não encontrada");
+
+            if (!ordemServico.PodeRetornarParaDiagnostico())
+                return Result.Conflicted("Status da ordem de serviço não permite retornar para diagnóstico");
+
+            ordemServico.RetornarParaDiagnostico(request.Motivo);
+
+            await _ordemServicoRepository.Atualizar(ordemServico);
+            var salvo = await _ordemServicoRepository.UnitOfWork.CommitAsync();
+
+            if (!salvo) return Result.Unexpected("Não foi possível atualizar a ordem de serviço. Por favor tente novamente.");
 
             return Result.Ok();
         }
