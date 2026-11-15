@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Wrench.Contracts" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\wrench.auto.repair.core\wrench.auto.repair.core.csproj" />
   </ItemGroup>
 
