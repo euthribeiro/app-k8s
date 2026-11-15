@@ -170,6 +170,25 @@ dotnet test wrench.auto.repair.sln --filter "FullyQualifiedName!~integration"
 dotnet test wrench.auto.repair.sln
 ```
 
+### Cobertura
+
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=euthribeiro_app-k8s&metric=alert_status)](https://sonarcloud.io/summary/overall?id=euthribeiro_app-k8s)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=euthribeiro_app-k8s&metric=coverage)](https://sonarcloud.io/component_measures?id=euthribeiro_app-k8s&metric=coverage)
+
+Os números acima são lidos do SonarCloud a cada análise — o painel completo fica em
+[sonarcloud.io/summary/overall?id=euthribeiro_app-k8s](https://sonarcloud.io/summary/overall?id=euthribeiro_app-k8s).
+
+A cobertura é verificada em **dois pontos independentes**, e o build falha em qualquer um deles:
+
+| Onde | Gate | O que mede |
+|---|---|---|
+| `dotnet-service-ci.yml` (ReportGenerator) | **80% de linhas** | Cobertura total da solution, com os filtros de assembly e classe do `dotnet-ci.yml` |
+| SonarCloud (`sonar.qualitygate.wait=true`) | **80% em código novo** | Apenas as linhas alteradas no PR |
+
+Medição de 15/11/2026, no PR que levou a Saga para a `master`: **81,3% em código novo**, sobre 970 linhas novas, com o quality gate aprovado.
+
+O relatório HTML de cada execução fica disponível como artefato do workflow, em `cobertura-build-test-sonar`.
+
 ### Auditoria de dependências
 
 O mesmo comando que o pipeline executa — o build falha se houver vulnerabilidade conhecida:
