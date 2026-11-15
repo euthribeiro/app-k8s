@@ -5,11 +5,16 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
 using wrench.auto.repair.autenticacao.infra;
 using wrench.auto.repair.cadastro.infra;
+using wrench.auto.repair.core.Services;
 using wrench.auto.repair.estoque.infra.Context;
+using wrench.auto.repair.ordem.servico.domain.Saga.Mensageria;
 using wrench.auto.repair.ordem.servico.infra.Context;
+using wrench.auto.repair.ordem.servico.infra.Saga.Mensageria;
 
 namespace wrench.web.api.integration.tests.Base
 {
@@ -80,7 +85,33 @@ namespace wrench.web.api.integration.tests.Base
 
                 services.AddAuthentication(TestAuthHandler.DefaultScheme)
                         .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.DefaultScheme, options => { });
+
+                services.RemoveAll<IEmailService>();
+                services.AddSingleton<EmailServiceFake>();
+                services.AddScoped<IEmailService>(provedor => provedor.GetRequiredService<EmailServiceFake>());
+
+                services.RemoveAll<IPublicadorSaga>();
+                services.AddSingleton<PublicadorSagaFake>();
+                services.AddScoped<IPublicadorSaga>(provedor => provedor.GetRequiredService<PublicadorSagaFake>());
+
+                RemoverServicoHospedado<SqsSagaConsumer>(services);
             });
+        }
+
+        /// <summary>
+        /// Tira do host de teste o consumidor da fila. Ele recebe <c>IAmazonSQS</c> por injeção, e
+        /// construir o cliente dispara a resolução de credenciais da AWS mesmo quando o consumidor
+        /// não tem fila configurada e encerra em seguida.
+        /// </summary>
+        private static void RemoverServicoHospedado<TServico>(IServiceCollection services)
+            where TServico : IHostedService
+        {
+            var hospedados = services
+                .Where(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(TServico))
+                .ToList();
+
+            foreach (var descritor in hospedados)
+                services.Remove(descritor);
         }
 
         async Task IAsyncLifetime.DisposeAsync()
