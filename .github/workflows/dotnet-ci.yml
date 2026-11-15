@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   # O build, os testes, o gate de cobertura e a análise do SonarCloud vivem no workflow
