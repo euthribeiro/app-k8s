@@ -22,7 +22,11 @@ COPY ["./src/wrench.auto.repair.ordem.servico.domain/wrench.auto.repair.ordem.se
 COPY ["./src/wrench.auto.repair.ordem.servico.infra/wrench.auto.repair.ordem.servico.infra.csproj", "src/wrench.auto.repair.ordem.servico.infra/"]
 COPY ["./src/wrench.auto.repair.infra/wrench.auto.repair.infra.csproj", "src/wrench.auto.repair.infra/"]
 
-RUN dotnet restore "./src/wrench.web.api/wrench.web.api.csproj"
+COPY ["nuget.config", "./"]
+
+RUN --mount=type=secret,id=gh_token \
+    GITHUB_PACKAGES_TOKEN="$(cat /run/secrets/gh_token)" \
+    dotnet restore "./src/wrench.web.api/wrench.web.api.csproj"
 COPY . .
 WORKDIR "/src/src/wrench.web.api"
 RUN dotnet build "./wrench.web.api.csproj" -c $BUILD_CONFIGURATION -o /app/build

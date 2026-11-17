@@ -85,9 +85,12 @@ jobs:
         env:
           ECR_REPOSITORY: ${{ steps.infra.outputs.api_repository }}
           IMAGE_TAG: ${{ steps.tag.outputs.new_version }}
+          GITHUB_PACKAGES_TOKEN: ${{ github.token }}
         run: |
+          cp nuget.config wrench.auto.repair/nuget.config
           cd wrench.auto.repair
-          docker build -t "$ECR_REPOSITORY:$IMAGE_TAG" -f ./scripts/Dockerfile .
+          docker build --secret id=gh_token,env=GITHUB_PACKAGES_TOKEN \
+            -t "$ECR_REPOSITORY:$IMAGE_TAG" -f ./scripts/Dockerfile .
           docker push "$ECR_REPOSITORY:$IMAGE_TAG"
 
       - name: Set up Helm CLI
